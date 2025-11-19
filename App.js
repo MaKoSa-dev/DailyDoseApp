@@ -13,7 +13,7 @@ import {
   onSnapshot, addDoc, deleteDoc
 } from 'firebase/firestore';
 const { height: screenHeight } = Dimensions.get('window');
-// Данные метрик
+// Данные метрик.
 const metrics = [
   { title: 'Шаги', value: 0, unit: 'шагов', target: 10000 },
   { title: 'Сон', value: '0ч 0м', unit: '', target: 8 },
