@@ -13,6 +13,7 @@ import {
   onSnapshot, addDoc, deleteDoc
 } from 'firebase/firestore';
 const { height: screenHeight } = Dimensions.get('window');
+// Данные метрик.
 // Данные метрик..
 const metrics = [
   { title: 'Шаги', value: 0, unit: 'шагов', target: 10000 },
@@ -137,7 +138,7 @@ export default function App() {
   const [meetings, setMeetings] = useState([]);
   const [showCreateMeeting, setShowCreateMeeting] = useState(false);
   const [allUsersData, setAllUsersData] = useState({});
-  const [currentMood, setCurrentMood] = useState(null);
+  const [currentMood, setCurrentMood] = useState(moodOptions[1]);
   const [showMoodQuestion, setShowMoodQuestion] = useState(true);
   const [selectedMood, setSelectedMood] = useState(null);
   const [newMeeting, setNewMeeting] = useState({
@@ -195,6 +196,13 @@ export default function App() {
   };
   const saveAllData = async () => {
     try {
+      const moodData = currentMood ? {
+        label: currentMood.label,
+        emoji: currentMood.emoji
+      } : {
+        label: moodOptions[1].label, 
+        emoji: moodOptions[1].emoji
+      };
       console.log('🔄 Пытаюсь сохранить данные...');
       await setDoc(doc(db, 'users', currentUserId), {
         username: currentUserId,
@@ -204,7 +212,7 @@ export default function App() {
         affirmation: affirmation,
         friends: friends,
         friendRequests: friendRequests,
-        mood: currentMood,
+        mood: moodData,
         lastUpdated: new Date()
 
       });
@@ -536,11 +544,16 @@ export default function App() {
           setCurrentMood(data.mood || null);
           setFriends(data.friends || []);
           setFriendRequests(data.friendRequests || { incoming: [], outgoing: [] });
-
+          if (data.mood && data.mood.emoji) {
+            const savedMood = moodOptions.find(option => option.emoji === data.mood.emoji);
+            setCurrentMood(savedMood || moodOptions[1]);
+          } else {
+            setCurrentMood(moodOptions[1]);
+          }
         }
 
         else {
-          setIsLoading(false);
+          setCurrentMood(moodOptions[1]);
           console.log('📝 Документ не найден, создаем новый');
           saveAllData();
         }
@@ -615,18 +628,12 @@ export default function App() {
 
       <View style={styles.actionButtons}>
         <TouchableOpacity style={styles.psychologistButton}>
-          <Text style={styles.psychologistButtonText}>отметить</Text>
+          <Text style={styles.psychologistButtonText}>отметить </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.psychologistMainButton}>
-          <Text style={styles.psychologistMainButtonText}>психолог</Text>
+          <Text style={styles.psychologistMainButtonText}>психолог </Text>
         </TouchableOpacity>
       </View>
-
-      <View style={styles.nextAppointment}>
-        <Ionicons name="calendar-outline" size={16} color="#666" />
-        <Text style={styles.appointmentText}>следующая запись к психологу</Text>
-      </View>
-      <Text style={styles.appointmentDate}>завтра (Завтра)</Text>
     </View>
   );
   const renderContent = () => {
@@ -2100,7 +2107,7 @@ const styles = StyleSheet.create({
   moodItem: {
     alignItems: 'center',
     padding: 15,
-    marginHorizontal: 10,
+    marginHorizontal: 15,
     borderRadius: 15,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     minWidth: 50,
