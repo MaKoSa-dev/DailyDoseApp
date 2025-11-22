@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, TextInput, KeyboardAvoidingView, Platform, Dimensions,  Animated } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, TextInput, KeyboardAvoidingView, Platform, Dimensions, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from './firebase';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -12,6 +12,7 @@ import {
   arrayUnion, arrayRemove,
   onSnapshot, addDoc, deleteDoc
 } from 'firebase/firestore';
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const { height: screenHeight } = Dimensions.get('window');
 // Данные метрик.
 // Данные метрик..
@@ -111,6 +112,119 @@ const moodOptions = [
   { emoji: 'sad', component: SadEmoji, label: 'Грустно' },
 ];
 export default function App() {
+  const MoodCarousel = () => {
+    const [selectedIndex, setSelectedIndex] = useState(1);
+    const scrollViewRef = useRef(null);
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const opacityAnim = useRef(new Animated.Value(1)).current;
+    const itemWidth = 80;
+    const spacing = 20;
+
+    const handleMoodSelect = (mood, index) => {
+      // Анимация исчезновения
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0.8,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        })
+      ]).start(() => {
+        // Смена состояния
+        setCurrentMood(mood);
+        setSelectedIndex(index);
+
+        // Автоматический сдвиг к центру
+        const x = index * (itemWidth + spacing) - (SCREEN_WIDTH / 2) + (itemWidth / 2);
+        scrollViewRef.current?.scrollTo({
+          x: x,
+          animated: true
+        });
+
+        // Анимация появления
+        Animated.parallel([
+          Animated.spring(scaleAnim, {
+            toValue: 1,
+            tension: 50,
+            friction: 7,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacityAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          })
+        ]).start();
+      });
+    };
+
+    return (
+      <View style={styles.moodContent}>
+        <Text style={styles.greeting}>Привет!</Text>
+        <Text style={styles.moodQuestion}>Как ваше самочувствие?</Text>
+
+        {/* Анимированный контейнер для эмодзи */}
+        <Animated.View
+          style={[
+            styles.animatedMoodContainer,
+            {
+              transform: [{ scale: scaleAnim }],
+              opacity: opacityAnim
+            }
+          ]}
+        >
+          <ScrollView
+            ref={scrollViewRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.moodScrollContainer}
+            contentContainerStyle={styles.moodScrollContent}
+            snapToInterval={itemWidth + spacing}
+            decelerationRate="fast"
+          >
+            {moodOptions.map((mood, index) => {
+              const EmojiComponent = mood.component;
+              const isSelected = currentMood?.label === mood.label;
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.moodItem,
+                    isSelected && styles.moodItemSelected
+                  ]}
+                  onPress={() => handleMoodSelect(mood, index)}
+                >
+                  <EmojiComponent
+                    size={isSelected ? 40 : 32}
+                    color={isSelected ? '#ffffff' : 'rgba(255, 255, 255, 0.7)'}
+                  />
+                  {isSelected && (
+                    <Text style={styles.moodLabelSelected}>{mood.label}</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </Animated.View>
+
+        <View style={styles.actionButtons}>
+          <TouchableOpacity style={styles.psychologistButton}>
+            <Text style={styles.psychologistButtonText}>отметить</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.psychologistMainButton}>
+            <Text style={styles.psychologistMainButtonText}>психолог</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+
   // Состояния трекера
   const [meals, setMeals] = useState({ breakfast: false, lunch: false, dinner: false });
   const [water, setWater] = useState(0);
@@ -200,7 +314,7 @@ export default function App() {
         label: currentMood.label,
         emoji: currentMood.emoji
       } : {
-        label: moodOptions[1].label, 
+        label: moodOptions[1].label,
         emoji: moodOptions[1].emoji
       };
       console.log('🔄 Пытаюсь сохранить данные...');
@@ -588,53 +702,7 @@ export default function App() {
     setSteps(steps + 1000);
   };
   const renderMoodSection = () => (
-    <View style={styles.moodContent}>
-      <Text style={styles.greeting}>Привет!</Text>
-      <Text style={styles.moodQuestion}>Как ваше самочувствие?</Text>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.moodScrollContainer}
-        contentContainerStyle={styles.moodScrollContent}
-      >
-        {moodOptions.map((mood, index) => {
-          const EmojiComponent = mood.component;
-          const isSelected = currentMood?.label === mood.label;
-
-          return (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.moodItem,
-                isSelected && styles.moodItemSelected
-              ]}
-              onPress={() => setCurrentMood(mood)}
-            >
-              <EmojiComponent
-                size={isSelected ? 36 : 32}
-                color={isSelected ? '#929ee6dc' : '#9baaf695'}
-              />
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {currentMood && (
-        <View style={styles.selectedMood}>
-          <Text style={styles.selectedMoodText}>{currentMood.label}</Text>
-        </View>
-      )}
-
-      <View style={styles.actionButtons}>
-        <TouchableOpacity style={styles.psychologistButton}>
-          <Text style={styles.psychologistButtonText}>отметить </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.psychologistMainButton}>
-          <Text style={styles.psychologistMainButtonText}>психолог </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <MoodCarousel />
   );
   const renderContent = () => {
     if (activeTab === 'chat' && selectedFriend) {
@@ -2096,15 +2164,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   moodScrollContainer: {
-    marginVertical: 15,
-    maxHeight: 100,
+    marginVertical: 20,
+    height: 120,
   },
   moodScrollContent: {
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: (SCREEN_WIDTH - 1000),
   },
   moodItem: {
+    marginTop: -250,
     alignItems: 'center',
     padding: 15,
     marginHorizontal: 15,
@@ -2208,5 +2276,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Gilroy-SemiBold',
     marginTop: 5,
     textAlign: 'center',
+  },
+    animatedMoodContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
