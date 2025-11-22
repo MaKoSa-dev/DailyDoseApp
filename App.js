@@ -113,52 +113,103 @@ const moodOptions = [
 ];
 export default function App() {
   const MoodCarousel = () => {
-    const [selectedIndex, setSelectedIndex] = useState(1);
-    const scrollViewRef = useRef(null);
-    const scaleAnim = useRef(new Animated.Value(1)).current;
-    const opacityAnim = useRef(new Animated.Value(1)).current;
+    const [selectedIndex, setSelectedIndex] = useState(1); // временное значение по умолчанию
     const itemWidth = 80;
     const spacing = 20;
+    const totalWidth = itemWidth + spacing;
+
+    const [currentPositions, setCurrentPositions] = useState([-totalWidth, 0, totalWidth]);
+
+    const translateAnims = moodOptions.map((_, i) =>
+      useRef(new Animated.Value(currentPositions[i])).current
+    );
+
+    // Загружаем данные из Firebase при монтировании
+    useEffect(() => {
+      const loadMoodDataFromFirebase = async () => {
+        try {
+          const docSnap = await getDoc(doc(db, 'users', currentUserId));
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+
+            // Загружаем позиции если есть
+            if (data.moodPositions && data.moodPositions.length === 3) {
+              setCurrentPositions(data.moodPositions);
+              data.moodPositions.forEach((position, index) => {
+                translateAnims[index].setValue(position);
+              });
+            }
+
+            // Загружаем выбранное настроение из базы
+            if (data.selectedMoodIndex !== undefined) {
+              setSelectedIndex(data.selectedMoodIndex);
+              setCurrentMood(moodOptions[data.selectedMoodIndex]);
+            } else if (data.mood) {
+              // Или ищем по старому формату (для обратной совместимости)
+              const savedMoodIndex = moodOptions.findIndex(option => option.emoji === data.mood.emoji);
+              if (savedMoodIndex !== -1) {
+                setSelectedIndex(savedMoodIndex);
+                setCurrentMood(moodOptions[savedMoodIndex]);
+              }
+            }
+            // Если в базе нет данных - остаются дефолтные значения
+          }
+        } catch (error) {
+          console.error('❌ Ошибка загрузки настроения:', error);
+        }
+      };
+
+      loadMoodDataFromFirebase();
+    }, [currentUserId]);
+
+    const savePositionsToFirebase = async (positions, selectedMood, selectedIdx) => {
+      try {
+        await updateDoc(doc(db, 'users', currentUserId), {
+          moodPositions: positions,
+          mood: {
+            label: selectedMood.label,
+            emoji: selectedMood.emoji
+          },
+          selectedMoodIndex: selectedIdx,
+          lastUpdated: new Date()
+        });
+      } catch (error) {
+        console.error('❌ Ошибка сохранения позиций:', error);
+      }
+    };
 
     const handleMoodSelect = (mood, index) => {
-      // Анимация исчезновения
-      Animated.parallel([
-        Animated.timing(scaleAnim, {
-          toValue: 0.8,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        })
-      ]).start(() => {
-        // Смена состояния
-        setCurrentMood(mood);
-        setSelectedIndex(index);
+      // Сразу обновляем состояния
+      setCurrentMood(mood);
+      setSelectedIndex(index);
 
-        // Автоматический сдвиг к центру
-        const x = index * (itemWidth + spacing) - (SCREEN_WIDTH / 2) + (itemWidth / 2);
-        scrollViewRef.current?.scrollTo({
-          x: x,
-          animated: true
-        });
+      const direction = index - selectedIndex;
 
-        // Анимация появления
-        Animated.parallel([
-          Animated.spring(scaleAnim, {
-            toValue: 1,
+      const newPositions = moodOptions.map((_, i) => {
+        if (direction > 0) {
+          if (i === index) return 0;
+          if (i === selectedIndex) return -totalWidth;
+          return totalWidth;
+        } else if (direction < 0) {
+          if (i === index) return 0;
+          if (i === selectedIndex) return totalWidth;
+          return -totalWidth;
+        }
+        return currentPositions[i];
+      });
+
+      Animated.parallel(
+        moodOptions.map((_, i) =>
+          Animated.spring(translateAnims[i], {
+            toValue: newPositions[i],
             tension: 50,
             friction: 7,
             useNativeDriver: true,
-          }),
-          Animated.timing(opacityAnim, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: true,
           })
-        ]).start();
+        )
+      ).start(() => {
+        setCurrentPositions(newPositions);
+        savePositionsToFirebase(newPositions, mood, index);
       });
     };
 
@@ -167,37 +218,25 @@ export default function App() {
         <Text style={styles.greeting}>Привет!</Text>
         <Text style={styles.moodQuestion}>Как ваше самочувствие?</Text>
 
-        {/* Анимированный контейнер для эмодзи */}
-        <Animated.View
-          style={[
-            styles.animatedMoodContainer,
-            {
-              transform: [{ scale: scaleAnim }],
-              opacity: opacityAnim
-            }
-          ]}
-        >
-          <ScrollView
-            ref={scrollViewRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.moodScrollContainer}
-            contentContainerStyle={styles.moodScrollContent}
-            snapToInterval={itemWidth + spacing}
-            decelerationRate="fast"
-          >
-            {moodOptions.map((mood, index) => {
-              const EmojiComponent = mood.component;
-              const isSelected = currentMood?.label === mood.label;
+        <View style={styles.moodCarouselWrapper}>
+          {moodOptions.map((mood, index) => {
+            const EmojiComponent = mood.component;
+            const isSelected = index === selectedIndex;
 
-              return (
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.moodItem,
+                  isSelected && styles.moodItemSelected,
+                  {
+                    transform: [{ translateX: translateAnims[index] }]
+                  }
+                ]}
+              >
                 <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.moodItem,
-                    isSelected && styles.moodItemSelected
-                  ]}
                   onPress={() => handleMoodSelect(mood, index)}
+                  style={styles.moodTouchable}
                 >
                   <EmojiComponent
                     size={isSelected ? 40 : 32}
@@ -207,10 +246,10 @@ export default function App() {
                     <Text style={styles.moodLabelSelected}>{mood.label}</Text>
                   )}
                 </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </Animated.View>
+              </Animated.View>
+            );
+          })}
+        </View>
 
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.psychologistButton}>
@@ -223,7 +262,6 @@ export default function App() {
       </View>
     );
   };
-
 
   // Состояния трекера
   const [meals, setMeals] = useState({ breakfast: false, lunch: false, dinner: false });
@@ -310,13 +348,6 @@ export default function App() {
   };
   const saveAllData = async () => {
     try {
-      const moodData = currentMood ? {
-        label: currentMood.label,
-        emoji: currentMood.emoji
-      } : {
-        label: moodOptions[1].label,
-        emoji: moodOptions[1].emoji
-      };
       console.log('🔄 Пытаюсь сохранить данные...');
       await setDoc(doc(db, 'users', currentUserId), {
         username: currentUserId,
@@ -326,7 +357,6 @@ export default function App() {
         affirmation: affirmation,
         friends: friends,
         friendRequests: friendRequests,
-        mood: moodData,
         lastUpdated: new Date()
 
       });
@@ -2172,10 +2202,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: (SCREEN_WIDTH - 1000),
   },
   moodItem: {
-    marginTop: -250,
+    marginTop: 0,
     alignItems: 'center',
     padding: 15,
-    marginHorizontal: 15,
+    marginHorizontal: -45,
     borderRadius: 15,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     minWidth: 50,
@@ -2183,6 +2213,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
     justifyContent: 'center',
+    position: 'absolute',
   },
   moodItemSelected: {
     minHeight: 80,
@@ -2277,8 +2308,56 @@ const styles = StyleSheet.create({
     marginTop: 5,
     textAlign: 'center',
   },
-    animatedMoodContainer: {
+  animatedMoodContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 150,
+    paddingHorizontal: 20,
+  },
+
+  psychologistButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#fff',
+    flex: 1,
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  psychologistButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Gilroy-SemiBold',
+  },
+
+  psychologistMainButton: {
+    backgroundColor: '#52b94bef',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    flex: 1,
+    marginLeft: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#52b94b',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+
+  psychologistMainButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Gilroy-Bold',
   },
 });
