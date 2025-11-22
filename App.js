@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, TextInput, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Image, TextInput, KeyboardAvoidingView, Platform, Dimensions,  Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from './firebase';
 import DateTimePicker from '@react-native-community/datetimepicker';
