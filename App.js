@@ -21,7 +21,7 @@ const metrics = [
   { title: 'Сон', value: '0ч 0м', unit: '', target: 8 },
   { title: 'Активность', value: '0', unit: '', target: 100 },
 ];
-const SadEmoji = ({ size = 32, color = "#000000" }) => (
+const SadEmoji = ({ size = 32, color = "#a2b4d7" }) => (
   <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
     <G>
       <Path
@@ -31,7 +31,7 @@ const SadEmoji = ({ size = 32, color = "#000000" }) => (
     </G>
   </Svg>
 );
-const HappyEmoji = ({ size = 32, color = "#000000" }) => (
+const HappyEmoji = ({ size = 32, color = "#a2b4d7" }) => (
   <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
     <G>
       <Path
@@ -42,7 +42,7 @@ const HappyEmoji = ({ size = 32, color = "#000000" }) => (
   </Svg>
 );
 
-const NeutralEmoji = ({ size = 32, color = "#000000" }) => (
+const NeutralEmoji = ({ size = 32, color = "#a2b4d7" }) => (
   <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
     <G>
       <Path
@@ -53,23 +53,6 @@ const NeutralEmoji = ({ size = 32, color = "#000000" }) => (
   </Svg>
 );
 
-const TiredEmoji = ({ size = 32, color = "#000" }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2" />
-    <Path d="M8 10C8 10 9 11 10 10" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    <Path d="M16 10C16 10 15 11 14 10" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    <Path d="M8 16C8 16 10 14 12 14C14 14 16 16 16 16" stroke={color} strokeWidth="2" strokeLinecap="round" />
-  </Svg>
-);
-
-const AngryEmoji = ({ size = 32, color = "#000" }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2" />
-    <Path d="M8 9L10 11" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    <Path d="M16 9L14 11" stroke={color} strokeWidth="2" strokeLinecap="round" />
-    <Path d="M8 16C8 16 10 18 12 18C14 18 16 16 16 16" stroke={color} strokeWidth="2" strokeLinecap="round" />
-  </Svg>
-);
 // Аффирмации
 const affirmations = [
   "Ты молодец! Продолжай в том же духе 💪",
@@ -112,10 +95,13 @@ const moodOptions = [
   { emoji: 'sad', component: SadEmoji, label: 'Грустно' },
 ];
 export default function App() {
-  const MoodCarousel = () => {
-    const [selectedIndex, setSelectedIndex] = useState(1); // временное значение по умолчанию
+  const MoodCarousel = ({ onMarkComplete }) => {
+    const [selectedIndex, setSelectedIndex] = useState(1);
+    const [isDataLoaded, setIsDataLoaded] = useState(false);
+    const [isMarked, setIsMarked] = useState(false);
+    const [currentMoodLabel, setCurrentMoodLabel] = useState(moodOptions[1].label);
     const itemWidth = 80;
-    const spacing = 20;
+    const spacing = 35;
     const totalWidth = itemWidth + spacing;
 
     const [currentPositions, setCurrentPositions] = useState([-totalWidth, 0, totalWidth]);
@@ -124,7 +110,12 @@ export default function App() {
       useRef(new Animated.Value(currentPositions[i])).current
     );
 
-    // Загружаем данные из Firebase при монтировании
+    // Анимации для скрытия карусели
+    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const translateYAnim = useRef(new Animated.Value(0)).current;
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+
+    // Загружаем данные из Firebase
     useEffect(() => {
       const loadMoodDataFromFirebase = async () => {
         try {
@@ -132,44 +123,49 @@ export default function App() {
           if (docSnap.exists()) {
             const data = docSnap.data();
 
-            // Загружаем позиции если есть
+            let loadedIndex = 1;
+
+            if (data.selectedMoodIndex !== undefined) {
+              loadedIndex = data.selectedMoodIndex;
+            } else if (data.mood && data.mood.emoji) {
+              const savedMoodIndex = moodOptions.findIndex(option => option.emoji === data.mood.emoji);
+              if (savedMoodIndex !== -1) {
+                loadedIndex = savedMoodIndex;
+              }
+            }
+
             if (data.moodPositions && data.moodPositions.length === 3) {
-              setCurrentPositions(data.moodPositions);
-              data.moodPositions.forEach((position, index) => {
-                translateAnims[index].setValue(position);
+              Animated.parallel(
+                moodOptions.map((_, i) =>
+                  Animated.spring(translateAnims[i], {
+                    toValue: data.moodPositions[i],
+                    tension: 30,
+                    friction: 15,
+                    useNativeDriver: true,
+                  })
+                )
+              ).start(() => {
+                setCurrentPositions(data.moodPositions);
               });
             }
 
-            // Загружаем выбранное настроение из базы
-            if (data.selectedMoodIndex !== undefined) {
-              setSelectedIndex(data.selectedMoodIndex);
-              setCurrentMood(moodOptions[data.selectedMoodIndex]);
-            } else if (data.mood) {
-              // Или ищем по старому формату (для обратной совместимости)
-              const savedMoodIndex = moodOptions.findIndex(option => option.emoji === data.mood.emoji);
-              if (savedMoodIndex !== -1) {
-                setSelectedIndex(savedMoodIndex);
-                setCurrentMood(moodOptions[savedMoodIndex]);
-              }
-            }
-            // Если в базе нет данных - остаются дефолтные значения
+            setSelectedIndex(loadedIndex);
+            setCurrentMood(moodOptions[loadedIndex]);
           }
         } catch (error) {
           console.error('❌ Ошибка загрузки настроения:', error);
+        } finally {
+          setIsDataLoaded(true);
         }
       };
 
       loadMoodDataFromFirebase();
     }, [currentUserId]);
 
-    const savePositionsToFirebase = async (positions, selectedMood, selectedIdx) => {
+    const savePositionsToFirebase = async (positions, selectedIdx) => {
       try {
         await updateDoc(doc(db, 'users', currentUserId), {
           moodPositions: positions,
-          mood: {
-            label: selectedMood.label,
-            emoji: selectedMood.emoji
-          },
           selectedMoodIndex: selectedIdx,
           lastUpdated: new Date()
         });
@@ -179,9 +175,7 @@ export default function App() {
     };
 
     const handleMoodSelect = (mood, index) => {
-      // Сразу обновляем состояния
-      setCurrentMood(mood);
-      setSelectedIndex(index);
+      if (!isDataLoaded || isMarked) return;
 
       const direction = index - selectedIndex;
 
@@ -198,23 +192,76 @@ export default function App() {
         return currentPositions[i];
       });
 
+      setSelectedIndex(index);
+      setCurrentMoodLabel(mood.label);
+
       Animated.parallel(
         moodOptions.map((_, i) =>
           Animated.spring(translateAnims[i], {
             toValue: newPositions[i],
-            tension: 50,
-            friction: 7,
+            tension: 30,
+            friction: 15,
             useNativeDriver: true,
           })
         )
       ).start(() => {
         setCurrentPositions(newPositions);
-        savePositionsToFirebase(newPositions, mood, index);
+        savePositionsToFirebase(newPositions, index);
       });
     };
 
+    // Функция для отметки настроения
+    const handleMarkMood = () => {
+      if (!isDataLoaded || isMarked) return;
+
+      console.log('🚀 Запускаем анимацию скрытия...');
+
+      // Запускаем анимацию
+      Animated.parallel([
+        Animated.timing(translateYAnim, {
+          toValue: -200,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.7,
+          duration: 600,
+          useNativeDriver: true,
+        })
+      ]).start(({ finished }) => {
+        if (finished) {
+          console.log('✅ Анимация завершена, скрываем карусель');
+          setIsMarked(true);
+          // Вызываем колбэк для анимации нижней части
+          if (onMarkComplete) {
+            onMarkComplete();
+          }
+        }
+      });
+    };
+
+    // Если настроение отмечено, не показываем карусель
+    if (isMarked) {
+      return null;
+    }
+
     return (
-      <View style={styles.moodContent}>
+      <Animated.View
+        style={[
+          styles.moodContent,
+          {
+            opacity: fadeAnim,
+            transform: [
+              { scale: scaleAnim }
+            ]
+          }
+        ]}
+      >
         <Text style={styles.greeting}>Привет!</Text>
         <Text style={styles.moodQuestion}>Как ваше самочувствие?</Text>
 
@@ -237,32 +284,35 @@ export default function App() {
                 <TouchableOpacity
                   onPress={() => handleMoodSelect(mood, index)}
                   style={styles.moodTouchable}
+                  disabled={!isDataLoaded}
                 >
                   <EmojiComponent
-                    size={isSelected ? 40 : 32}
-                    color={isSelected ? '#ffffff' : 'rgba(255, 255, 255, 0.7)'}
-                  />
-                  {isSelected && (
-                    <Text style={styles.moodLabelSelected}>{mood.label}</Text>
-                  )}
+                    size={isSelected ? 50 : 50}
+                    color={isSelected ? '#a2b4d7' : '#a2b4d7'} />
                 </TouchableOpacity>
               </Animated.View>
             );
           })}
         </View>
+        <View style={styles.moodLabelContainer}>
+          <Text style={styles.moodLabelText}>{currentMoodLabel}</Text>
+        </View>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.psychologistButton}>
+          <TouchableOpacity
+            style={styles.psychologistButton}
+            onPress={handleMarkMood}
+            disabled={!isDataLoaded}
+          >
             <Text style={styles.psychologistButtonText}>отметить</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.psychologistMainButton}>
             <Text style={styles.psychologistMainButtonText}>психолог</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
     );
   };
-
   // Состояния трекера
   const [meals, setMeals] = useState({ breakfast: false, lunch: false, dinner: false });
   const [water, setWater] = useState(0);
@@ -271,6 +321,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('home');
   const [currentUserId, setCurrentUserId] = useState('user123');
   const [showUserSwitch, setShowUserSwitch] = useState(false);
+  const [showTopSection, setShowTopSection] = useState(true);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState({
     incoming: [],
@@ -293,6 +344,13 @@ export default function App() {
   const [currentMood, setCurrentMood] = useState(moodOptions[1]);
   const [showMoodQuestion, setShowMoodQuestion] = useState(true);
   const [selectedMood, setSelectedMood] = useState(null);
+  const [showMoodCarousel, setShowMoodCarousel] = useState(true);
+  const [stepGoal, setStepGoal] = useState(10000);
+  const [waterGoal, setWaterGoal] = useState(2);
+  const [showStepGoalModal, setShowStepGoalModal] = useState(false);
+  const [showWaterGoalModal, setShowWaterGoalModal] = useState(false);
+  const [tempStepGoal, setTempStepGoal] = useState(stepGoal);
+  const [tempWaterGoal, setTempWaterGoal] = useState(waterGoal);
   const [newMeeting, setNewMeeting] = useState({
     title: '',
     description: '',
@@ -364,6 +422,10 @@ export default function App() {
     } catch (error) {
       console.error('❌ Ошибка сохранения:', error);
     }
+  };
+  const handleMarkComplete = () => {
+    // Просто скрываем верхнюю секцию
+    setShowMoodCarousel(false);
   };
   const renderChatScreen = () => (
     <KeyboardAvoidingView
@@ -691,8 +753,6 @@ export default function App() {
           if (data.mood && data.mood.emoji) {
             const savedMood = moodOptions.find(option => option.emoji === data.mood.emoji);
             setCurrentMood(savedMood || moodOptions[1]);
-          } else {
-            setCurrentMood(moodOptions[1]);
           }
         }
 
@@ -719,6 +779,43 @@ export default function App() {
     };
     return users[userId] || userId;
   };
+  const [isMoodMarked, setIsMoodMarked] = useState(false);
+  const handleMarkMood = () => {
+    if (!isDataLoaded || isMarked) return;
+
+    console.log('🚀 Запускаем анимацию скрытия...');
+
+    // Запускаем анимацию скрытия карусели
+    Animated.parallel([
+      Animated.timing(translateYAnim, {
+        toValue: -200,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.7,
+        duration: 600,
+        useNativeDriver: true,
+      })
+    ]).start(({ finished }) => {
+      if (finished) {
+        console.log('✅ Анимация завершена, скрываем карусель');
+        setIsMarked(true);
+        // Убираем верхнюю секцию полностью
+        if (onMarkComplete) {
+          onMarkComplete();
+        }
+      }
+    });
+  };
+  useEffect(() => {
+    // Изначально скрываем нижнюю часть
+  }, []);
   // Автосохранение при изменении данных
   useEffect(() => {
     {
@@ -732,7 +829,7 @@ export default function App() {
     setSteps(steps + 1000);
   };
   const renderMoodSection = () => (
-    <MoodCarousel />
+    <MoodCarousel onMarkComplete={handleMarkComplete} />
   );
   const renderContent = () => {
     if (activeTab === 'chat' && selectedFriend) {
@@ -746,40 +843,62 @@ export default function App() {
       case 'home':
         return (
           <View style={styles.homeContainer}>
-            <LinearGradient
-              colors={['#BFD4FF', '#7585cdff']}
-              start={{ x: 0.74, y: 0.94 }}
-              end={{ x: 0.26, y: 0.06 }}
-              style={styles.topSection}
+            {showMoodCarousel ? (
+              <LinearGradient
+                colors={['#BFD4FF', '#7585cdff']}
+                style={styles.topSection}
+              >
+                {renderMoodSection()}
+              </LinearGradient>
+            ) : null}
+            <ScrollView
+              style={styles.bottomScrollView}
+              showsVerticalScrollIndicator={false}
             >
-              {renderMoodSection()}
-            </LinearGradient>
-            <ScrollView style={styles.bottomScrollView} showsVerticalScrollIndicator={false}>
-              {/* Вода */}
-              <View style={styles.section}>
+              <View style={styles.horizontalMetrics}>
+                <View style={styles.stepsContainer}>
+                  <Text style={styles.stepsTitle}>Шагомер</Text>
+                  <Text style={styles.stepsCount}>{steps}</Text>
+                  <View style={styles.stepsProgress}>
+                    <View style={[styles.stepsGoal, { width: `${(steps / stepGoal) * 100}%` }]} />
+                  </View>
+                  <Text style={styles.stepsGoaltext}>Сегодняшняя цель:</Text>
+                  <Text style={styles.stepsGoal}>{stepGoal} шагов</Text>
+                </View>
+                <View style={styles.stepsCircle}>
+                  <Text style={styles.stepsCount}>{steps}</Text>
+                  <Text style={styles.stepsLabel}>шагов</Text>
+                </View>
+                <View style={styles.waterFooter}>
+                  <Ionicons name="wine-outline" size={20} color="#3B82F6" />
+                </View>
+                <View style={styles.headerWithCircle}>
+                  <TouchableOpacity
+                    style={styles.circleButton}
+                    onPress={() => setShowStepGoalModal(true)}
+                  >
+                    <Ionicons name="pencil-outline" size={18} color="#6366F1" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Вода справа */}
                 <View style={styles.waterTracker}>
-                  <Text style={styles.waterTitle}>Вода</Text>
-                  <Text style={styles.waterAmount}>12 л</Text>
+                  <View style={styles.headerWithCircle}>
+                    <Text style={styles.waterTitle}>Вода</Text>
+                  </View>
+                  <Text style={styles.waterAmount}>{water} л</Text>
                   <View style={styles.waterProgress}>
-                    <View style={[styles.waterProgressFill, { width: '60%' }]} />
+                    <View style={[styles.waterProgressFill, { width: `${(water / waterGoal) * 100}%` }]} />
                   </View>
+                  <Text style={styles.waterGoal}>Цель: {waterGoal} л</Text>
                 </View>
+                <TouchableOpacity
+                  style={styles.circleButton}
+                  onPress={() => setShowWaterGoalModal(true)}
+                >
+                  <Ionicons name="pencil-outline" size={18} color="#3B82F6" />
+                </TouchableOpacity>
               </View>
-
-              {/* Прогресс и задачи */}
-              <View style={styles.section}>
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressTitle}>Прогресс</Text>
-                  <Text style={styles.newTasks}>новые задачи</Text>
-                </View>
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: '45%' }]} />
-                  </View>
-                  <Text style={styles.progressText}>45% выполнено</Text>
-                </View>
-              </View>
-
               {/* Аффирмация */}
               <View style={styles.section}>
                 <View style={styles.affirmationCard}>
@@ -798,91 +917,35 @@ export default function App() {
                   </TouchableOpacity>
                 </View>
               </View>
-              {/* Трекер еды */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Питание</Text>
-                <View style={styles.mealsContainer}>
-                  {[
-                    { key: 'breakfast', name: 'Завтрак', icon: '🍳' },
-                    { key: 'lunch', name: 'Обед', icon: '🍲' },
-                    { key: 'dinner', name: 'Ужин', icon: '🍽️' }
-                  ].map((meal) => (
-                    <TouchableOpacity
-                      key={meal.key}
-                      style={[styles.mealCard, meals[meal.key] && styles.mealCardDone]}
-                      onPress={() => setMeals({ ...meals, [meal.key]: !meals[meal.key] })}
-                    >
-                      <Text style={styles.mealIcon}>{meal.icon}</Text>
-                      <Text style={styles.mealName}>{meal.name}</Text>
-                      <View style={[styles.mealCheck, meals[meal.key] && styles.mealCheckDone]}>
-                        {meals[meal.key] && <Text style={styles.checkmark}>✓</Text>}
-                      </View>
+            </ScrollView>
+            {/* Модалка для изменения цели шагов */}
+            {showStepGoalModal && (
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Изменить цель шагов</Text>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={String(tempStepGoal)}
+                    onChangeText={(text) => setTempStepGoal(Number(text))}
+                    placeholder="Введите цель шагов"
+                  />
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity style={styles.cancelButton} onPress={() => setShowStepGoalModal(false)}>
+                      <Text style={styles.cancelButtonText}>Отмена</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Психолог и встречи */}
-              <View style={styles.section}>
-                <View style={styles.psychologistCard}>
-                  <View style={styles.psychologistHeader}>
-                    <Text style={styles.psychologistTitle}>Психолог</Text>
-                    <TouchableOpacity style={styles.psychologistButton}>
-                      <Text style={styles.psychologistButtonText}>отметить</Text>
+                    <TouchableOpacity style={styles.createButton} onPress={() => {
+                      setStepGoal(tempStepGoal);
+                      setShowStepGoalModal(false);
+                    }}>
+                      <Text style={styles.createButtonText}>Сохранить</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.nextAppointment}>
-                    <Ionicons name="calendar-outline" size={16} color="#666" />
-                    <Text style={styles.appointmentText}>Следующая запись: завтра (5 августа)</Text>
-                  </View>
                 </View>
               </View>
+            )}
+          </View >
 
-              {/* Вода */}
-              <View style={styles.section}>
-                <View style={styles.waterTracker}>
-                  <Text style={styles.waterTitle}>Вода</Text>
-                  <Text style={styles.waterAmount}>12 л</Text>
-                  <View style={styles.waterProgress}>
-                    <View style={[styles.waterProgressFill, { width: `${(water / 8) * 100}%` }]} />
-                  </View>
-                </View>
-              </View>
-
-              {/* Прогресс и задачи */}
-              <View style={styles.section}>
-                <View style={styles.progressHeader}>
-                  <Text style={styles.progressTitle}>Прогресс</Text>
-                  <Text style={styles.newTasks}>новые задачи</Text>
-                </View>
-                <View style={styles.progressContainer}>
-                  <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-                  </View>
-                  <Text style={styles.progressText}>{Math.round(progress * 100)}% выполнено</Text>
-                </View>
-              </View>
-
-              {/* Аффирмация */}
-              <View style={styles.section}>
-                <View style={styles.affirmationCard}>
-                  <Text style={styles.affirmationText}>{affirmation}</Text>
-                  <TouchableOpacity
-                    style={styles.newAffirmationButton}
-                    onPress={() => {
-                      let newAffirmation;
-                      do {
-                        newAffirmation = affirmations[Math.floor(Math.random() * affirmations.length)];
-                      } while (newAffirmation === affirmation && affirmations.length > 1);
-                      setAffirmation(newAffirmation);
-                    }}
-                  >
-                    <Text style={styles.newAffirmationText}>Новая аффирмация</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView >
-          </View>
         );
       case 'friends':
         return (
@@ -1271,7 +1334,6 @@ const styles = StyleSheet.create({
     right: 0,
   },
   bottomSpacer: {
-
     height: 100,
   },
   scrollView: {
@@ -1322,7 +1384,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   header: {
-    fontSize: 25,
+    fontSize: 20,
     fontFamily: 'Gilroy-Bold',
     marginBottom: 20,
     color: '#ffffffea',
@@ -1389,11 +1451,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Gilroy-Regular',
   },
   greeting: {
-    left: 110,
     fontSize: 30,
     fontFamily: 'Gilroy-SemiBold',
     color: '#ffffffff',
-    marginBottom: 25,
+    marginBottom: 20,
   },
   metricSubtext: {
     fontSize: 12,
@@ -1404,11 +1465,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   moodQuestion: {
-    left: 50,
-    fontSize: 18,
+    fontSize: 15,
     fontFamily: 'Gilroy-SemiBold',
-    color: '#e5ebf3f8',
-    marginBottom: 15,
+    color: '#fffffffe',
+    marginBottom: 30,
   },
   moodOptions: {
     flexDirection: 'row',
@@ -1426,35 +1486,7 @@ const styles = StyleSheet.create({
     borderColor: '#6366F1',
     borderWidth: 2,
   },
-  moodEmoji: {
-    fontSize: 24,
-    marginBottom: 5,
-  },
-  moodLabel: {
-    fontSize: 12,
-    color: '#475569',
-    fontFamily: 'Gilroy-SemiBold',
-  },
-  currentMood: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#10B981',
-  },
-  moodText: {
-    fontSize: 16,
-    color: '#065F46',
-    fontFamily: 'Gilroy-SemiBold',
-  },
-  changeMoodText: {
-    fontSize: 14,
-    color: '#059669',
-    fontFamily: 'Gilroy-SemiBold',
-  },
+
   section: {
     paddingHorizontal: 20,
     marginBottom: 15,
@@ -1467,8 +1499,10 @@ const styles = StyleSheet.create({
   },
   bottomScrollView: {
     flex: 1,
-    marginTop: screenHeight * 0.5, // Отступ равный высоте верхней части
-    paddingBottom: 100, // Отступ для таббара
+    backgroundColor: '#000000ff', // Добавляем фон чтобы контент был виден
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 20,
   },
   bottomSection: {
     flex: 1,
@@ -1476,16 +1510,36 @@ const styles = StyleSheet.create({
   },
   // Стили для шагомера
   stepsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    marginRight: -50,
+    top: 10,
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 16,
+    marginHorizontal: -40,
+    marginBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  stepsTitle: {
+    fontSize: 14,
+    fontFamily: 'Gilroy-SemiBold',
+    color: '#7585cdff',
+    marginBottom: 8,
+    letterSpacing: -1,
+    textTransform: 'uppercase',
+    left: -10,
+    top: -10,
   },
   stepsCircle: {
-    left: 10,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    left: -150,
+    top: 140,
+    width: 125,
+    height: 125,
+    borderRadius: 100,
+    backgroundColor: '#7585cdff',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1498,35 +1552,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#fff',
     opacity: 0.9,
-    fontFamily: 'Gilroy-Regular',
+    fontFamily: 'Gilroy-Bold  ',
   },
   stepsInfo: {
     alignItems: 'center',
     flex: 1,
-    marginLeft: 20,
+    marginLeft: -35,
   },
   stepsGoal: {
-    fontSize: 16,
-    fontFamily: 'Gilroy-SemiBold',
-    color: '#eff0f3e5',
-    marginBottom: 5,
+    letterSpacing: -1,
+    top: -55,
+    fontSize: 15,
+    fontFamily: 'Gilroy-Bold',
+    color: '#7585cdff',
+    marginBottom: 1,
+    left: 10,
   },
   stepsProgress: {
     fontSize: 14,
     color: '#b6b7b8ff',
-    fontFamily: 'Gilroy-Bold',
+    fontWeight: 'bold',
   },
-  addButton: {
-    backgroundColor: 'rgba(19, 213, 148, 0.38)',
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 15,
-    alignItems: 'center',
-  },
-  addButtonText: {
-    color: '#fff',
+  stepsGoaltext: {
+    letterSpacing: -1,
+    top: -50,
+    fontSize: 15,
     fontFamily: 'Gilroy-SemiBold',
-    fontSize: 16,
+    color: '#7585cdff',
+    marginBottom: 1,
+    left: -12,
   },
   // Стили для еды
   mealsContainer: {
@@ -1622,9 +1676,13 @@ const styles = StyleSheet.create({
   },
   // Стили для воды
   waterTracker: {
+    top: 10,
+    left: -20,
     backgroundColor: '#fff',
-    padding: 20,
+    padding: 60,
     borderRadius: 16,
+    marginHorizontal: -100,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1632,27 +1690,33 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   waterTitle: {
-    fontSize: 16,
+    fontSize: 14,
+    left: -50,
+    top: -50,
     fontFamily: 'Gilroy-SemiBold',
-    color: '#64748B',
-    marginBottom: 5,
+    color: '#7585cdff',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: -1,
   },
   waterAmount: {
-    fontSize: 24,
+    fontSize: 32,
     fontFamily: 'Gilroy-Bold',
-    color: '#1E293B',
-    marginBottom: 15,
+    color: '#7585cdff',
+    marginBottom: 20,
+    left: -50,
+    top: -70,
   },
   waterProgress: {
-    height: 8,
+    height: 12,
     backgroundColor: '#F1F5F9',
-    borderRadius: 4,
+    borderRadius: 6,
     overflow: 'hidden',
   },
   waterProgressFill: {
     height: '100%',
     backgroundColor: '#3B82F6',
-    borderRadius: 4,
+    borderRadius: 6,
   },
   // Стили для социальной активности
   socialContainer: {
@@ -2206,8 +2270,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 15,
     marginHorizontal: -45,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 35,
+    backgroundColor: 'rgba(240, 239, 239, 0.67)',
     minWidth: 50,
     minHeight: 65,
     borderWidth: 2,
@@ -2220,38 +2284,16 @@ const styles = StyleSheet.create({
     padding: 15,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     transform: [{ scale: 1.2 }],
-    margin: 150,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 1,
   },
-  // Убрали обычный moodLabel, так как подписи только у выбранного
-  moodLabelSelected: {
-    color: '#52b94bef',
-    fontSize: 5,
-    fontFamily: 'Gilroy-Bold',
-    textAlign: 'center',
-    marginTop: 5,
-  },
   moodContent: {
     alignItems: 'center',
     paddingHorizontal: 20,
-  },
-  greeting: {
-    fontSize: 30,
-    fontFamily: 'Gilroy-SemiBold',
-    color: '#ffffffff',
-    marginBottom: 25,
-    textAlign: 'center',
-  },
-  moodQuestion: {
-    fontSize: 18,
-    fontFamily: 'Gilroy-SemiBold',
-    color: '#e5ebf3f8',
-    marginBottom: 15,
-    textAlign: 'center',
+    height: screenHeight * 0.5,
   },
   selectedMoodText: {
     fontSize: 16,
@@ -2260,34 +2302,14 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
     marginLeft: 10,
   },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginVertical: 15,
-  },
-  psychologistButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#fff',
-  },
   psychologistButtonText: {
     color: '#fff',
     fontSize: 14,
     fontFamily: 'Gilroy-SemiBold',
   },
-  psychologistMainButton: {
-    backgroundColor: '#52b94bef',
-    paddingHorizontal: 25,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
   psychologistMainButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: 'Gilroy-Bold',
   },
   nextAppointment: {
@@ -2316,31 +2338,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    marginTop: 150,
+    marginTop: 120,
     paddingHorizontal: 20,
   },
 
   psychologistButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 1)',
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 20,
+    borderRadius: 80,
     borderWidth: 1,
     borderColor: '#fff',
     flex: 1,
-    marginRight: 10,
+    marginRight: -10,
+    marginLeft: -10,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   psychologistButtonText: {
-    color: '#fff',
-    fontSize: 14,
+    color: '#7585cdde',
+    fontSize: 15,
     fontFamily: 'Gilroy-SemiBold',
   },
 
   psychologistMainButton: {
-    backgroundColor: '#52b94bef',
+    backgroundColor: '#7585cdd9',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -2354,10 +2377,59 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-
-  psychologistMainButtonText: {
-    color: '#fff',
+  moodLabelText: {
     fontSize: 14,
-    fontFamily: 'Gilroy-Bold',
+    fontFamily: 'Gilroy-SemiBold',
+    color: '#ffffff',
+    textAlign: 'center',
+    left: -2,
+    bottom: -85,
+  },
+  moodLabelContainer: {
+    alignItems: 'center',
+  },
+  horizontalMetrics: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 40,
+    marginBottom: 15,
+  },
+  headerWithCircle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  circleButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  circleEmoji: {
+    fontSize: 16,
+  },
+  goalText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontFamily: 'Gilroy-Regular',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  waterFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    gap: 6,
   },
 });
