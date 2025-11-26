@@ -9,6 +9,7 @@ import Svg, { Path, Circle, G } from 'react-native-svg';
 import Calendar from './components/Calendar';
 import { format } from 'date-fns';
 import { kk } from 'date-fns/locale';
+import { Linking } from 'react-native';
 import {
   doc, setDoc, getDoc, updateDoc,
   collection, query, where, getDocs,
@@ -97,6 +98,15 @@ const moodOptions = [
   { emoji: 'sad', component: SadEmoji, label: 'Грустно' },
 ];
 export default function App() {
+  const openTelegramBot = () => {
+    const telegramBotUrl = 'https://t.me/trackertech_bot';
+
+    Linking.openURL(telegramBotUrl).catch(err => {
+      console.error('Ошибка открытия Telegram:', err);
+      alert('Не удалось открыть Telegram. Убедитесь, что приложение установлено.');
+    });
+  };
+
   const MoodCarousel = ({ onMarkComplete }) => {
     const [selectedIndex, setSelectedIndex] = useState(1);
     const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -308,7 +318,10 @@ export default function App() {
           >
             <Text style={styles.psychologistButtonText}>отметить</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.psychologistMainButton}>
+          <TouchableOpacity
+            style={styles.psychologistMainButton}
+            onPress={openTelegramBot}
+          >
             <Text style={styles.psychologistMainButtonText}>психолог</Text>
           </TouchableOpacity>
         </View>
@@ -464,7 +477,7 @@ export default function App() {
 
       {/* Сообщения */}
       <ScrollView style={styles.chatMessages}>
-        <View style={styles.systemMessage}>3
+        <View style={styles.systemMessage}>
           <Text style={styles.systemMessageText}>
             Здравствуйте, меня зовут {getUserName(selectedFriend)}, я ваш друг. Давайте общаться!
           </Text>
@@ -1228,6 +1241,30 @@ export default function App() {
       case 'friends':
         return (
           <ScrollView style={styles.friendsContainer} showsVerticalScrollIndicator={false}>
+            {/* ЗАГОЛОВОК С ГРАДИЕНТОМ */}
+            <LinearGradient
+              colors={['#BFD4FF', '#7585cdff']}
+              style={styles.friendsHeader}
+            >
+              <Text style={styles.friendsMainTitle}>Друзья</Text>
+              <Text style={styles.friendsSubtitle}>Общайтесь и отслеживайте прогресс вместе</Text>
+
+              {/* СТАТИСТИКА ДРУЗЕЙ */}
+              <View style={styles.friendsStats}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{friends?.length || 0}</Text>
+                  <Text style={styles.statLabel}>друзей</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{friendRequests?.incoming?.length || 0}</Text>
+                  <Text style={styles.statLabel}>заявки</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Text style={styles.statNumber}>{meetings?.length || 0}</Text>
+                  <Text style={styles.statLabel}>встречи</Text>
+                </View>
+              </View>
+            </LinearGradient>
             {/* ПОИСК ДРУЗЕЙ */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Найти друзей</Text>
@@ -1246,7 +1283,6 @@ export default function App() {
               {searchResults.map(user => (
                 <View key={user.id} style={styles.userCard}>
                   <Text style={styles.userName}>@{user.username}</Text>
-                  <Text style={styles.userName}>{user.username}</Text>
                   <Text style={styles.userSteps}>Шаги: {user.steps}</Text>
                   <TouchableOpacity
                     style={styles.addFriendButton}
@@ -1451,6 +1487,7 @@ export default function App() {
               </View>
             )}
           </ScrollView>
+
         );
       case 'chat':
         if (selectedFriend) {
@@ -1476,12 +1513,11 @@ export default function App() {
               style={styles.settingsSection}
             >
               <Text style={styles.settingsTitle}>
-                <Ionicons name="person-circle" size={20} color="#374151" />  Переключение пользователей
+                <Ionicons name="person-circle" size={20} color="#fafbfeff" />  Переключение пользователей
               </Text>
               <Text style={styles.settingsDescription}>
                 Текущий пользователь: {getUserName(currentUserId)}
               </Text>
-
               <View style={styles.userOptions}>
                 {Object.entries(allUsersData).map(([userId, userData]) => (
                   <TouchableOpacity
@@ -1499,7 +1535,6 @@ export default function App() {
                         <Text style={styles.userName}>
                           {userData.username || userId}
                         </Text>
-                        <Text style={styles.userId}>{userId}</Text>
                       </View>
                     </View>
                     <Text style={styles.userButtonSubtext}>
@@ -1510,18 +1545,15 @@ export default function App() {
               </View>
             </LinearGradient>
             {/* ИНФОРМАЦИЯ О ПРИЛОЖЕНИИ */}
-            <LinearGradient
-              colors={['#BFD4FF', '#7585cdff']}
-              style={styles.settingsSection}
-            >
+
+            <View style={styles.settingsSection}>
               <Text style={styles.settingsTitle}>
-                <Ionicons name="information-circle-outline" size={20} color="#374151" /> О приложении
+                <Ionicons name="information-circle-outline" size={20} color='#fafafaff' /> О приложении
               </Text>
               <Text style={styles.appInfo}>
                 Daily Dose - Трекер здоровья v1.0
               </Text>
-            </LinearGradient>
-
+            </View>
           </ScrollView>
         );
       default:
@@ -2145,7 +2177,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   settingsSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: '#7585cdff',
     padding: 20,
     borderRadius: 15,
     marginBottom: 15,
@@ -2169,9 +2201,9 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   userButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f3f4f6c3',
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 15,
     marginBottom: 10,
     borderWidth: 2,
     borderColor: 'transparent',
@@ -2211,152 +2243,153 @@ const styles = StyleSheet.create({
   },
   friendsContainer: {
     flex: 1,
-    paddingTop: 50,
-    paddingBottom: 35,
+    backgroundColor: '#000000',
   },
   declineButton: {
-    backgroundColor: '#ef4444',
-    padding: 8,
-    borderRadius: 8,
-    marginLeft: 5,
+    backgroundColor: '#7585cdff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 15,
     alignItems: 'center',
   },
   declineButtonText: {
     color: '#fff',
     fontSize: 12,
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   noRequestsText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
     fontStyle: 'italic',
-    marginTop: 10,
+    marginTop: 20,
     fontFamily: 'Gilroy-Regular',
   },
   noFriendsText: {
     fontSize: 14,
-    color: '#6b7280',
+    color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
     fontStyle: 'italic',
-    marginTop: 10,
+    marginTop: 20,
     fontFamily: 'Gilroy-Regular',
   },
   messagesContainer: {
     flex: 1,
-    padding: 10,
+    padding: 20,
+    backgroundColor: '#000000',
+  },
+  requestText: {
+    fontSize: 13,
+    fontFamily: 'Gilroy-Bold',
+    color: '#7585cdff',
+    marginBottom: 1,
   },
   requestButtons: {
     flexDirection: 'row',
-    marginTop: 10,
+    marginTop: 15,
+    gap: 10,
   },
   acceptButton: {
-    backgroundColor: '#10b981',
-    padding: 8,
-    borderRadius: 8,
-    marginRight: 5,
+    backgroundColor: '#7585cdff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 15,
     alignItems: 'center',
-    minWidth: 80,
+    flex: 1,
   },
   acceptButtonText: {
     color: '#fff',
     fontSize: 12,
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   searchPlaceholder: {
     fontSize: 14,
-    color: '#6b7280',
+    color: 'rgba(255,255,255,0.7)',
     textAlign: 'center',
-    marginTop: 5,
+    marginTop: 40,
     fontStyle: 'italic',
     fontFamily: 'Gilroy-Regular',
   },
   searchButton: {
-    backgroundColor: '#52b94bef',
-    padding: 5,
-    borderRadius: 10,
-    marginLeft: 15,
-    marginRight: 15,
+    backgroundColor: '#7585cdff',
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   searchButtonText: {
     color: '#fff',
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
     fontSize: 14,
+    letterSpacing: -1,
   },
   deleteMeetingButton: {
     backgroundColor: '#ef4444',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 15,
     alignItems: 'center',
+    marginTop: 15,
   },
   deleteMeetingText: {
     color: '#fff',
-    fontSize: 14,
-    fontFamily: 'Gilroy-SemiBold',
+    fontSize: 12,
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   meetingsHeader: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 15,
+    alignItems: 'center',
+    marginBottom: 10,
   },
   addMeetingButton: {
-    backgroundColor: '#52b94bef',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: -10,
-    alignSelf: 'flex-start',
+    backgroundColor: '#7585cdff',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    alignItems: 'center',
   },
   addMeetingButtonText: {
     color: '#fff',
     fontSize: 14,
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   meetingCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 15,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   meetingTitle: {
     fontSize: 18,
     fontFamily: 'Gilroy-Bold',
-    color: '#374151bb',
-    marginBottom: 5,
+    color: '#ffffff',
+    marginBottom: 8,
   },
   meetingDescription: {
     fontSize: 14,
-    color: '#6b7280c1',
-    marginBottom: 8,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 12,
     fontFamily: 'Gilroy-Regular',
   },
   meetingDate: {
     fontSize: 12,
-    color: '#756d6ddb',
-    marginBottom: 5,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 8,
     fontFamily: 'Gilroy-Regular',
   },
   meetingParticipants: {
     fontSize: 12,
-    color: '#716292c5',
-    marginBottom: 10,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 15,
     fontFamily: 'Gilroy-Regular',
-  },
-  deleteMeetingButton: {
-    backgroundColor: '#ef4444',
-    padding: 8,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  deleteMeetingText: {
-    color: '#fff',
-    fontSize: 12,
-    fontFamily: 'Gilroy-SemiBold',
   },
   // Стили для модалки встречи
   modalOverlay: {
@@ -2365,219 +2398,345 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
   },
   modalContent: {
-    backgroundColor: 'white',
-    padding: 20,
-    borderRadius: 15,
+    backgroundColor: '#1a1a1a',
+    padding: 25,
+    borderRadius: 25,
     width: '90%',
     maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   modalTitle: {
     color: '#7585cdff',
-    fontSize: 20,
-    fontFamily: 'Gilroy-SemiBold',
-    marginBottom: 15,
+    fontSize: 22,
+    fontFamily: 'Gilroy-Bold',
+    marginBottom: 20,
     textAlign: 'center',
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
+    borderColor: 'rgba(255,255,255,0.2)',
+    padding: 15,
+    borderRadius: 15,
+    marginBottom: 15,
     fontSize: 16,
     fontFamily: 'Gilroy-Regular',
+    color: '#ffffff',
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
   },
   dateButton: {
-    backgroundColor: '#f3f4f6',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 15,
+    borderRadius: 15,
+    marginBottom: 15,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   dateButtonText: {
     fontSize: 16,
-    color: '#374151',
+    color: '#ffffff',
     textAlign: 'center',
     fontFamily: 'Gilroy-Regular',
   },
   friendsLabel: {
     fontSize: 16,
     fontFamily: 'Gilroy-SemiBold',
-    marginBottom: 10,
-    color: '#374151',
+    marginBottom: 15,
+    color: '#ffffff',
   },
   friendCheckbox: {
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 5,
-    backgroundColor: '#f9fafb',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   friendCheckboxText: {
     fontSize: 14,
-    color: '#374151',
+    color: '#ffffff',
     fontFamily: 'Gilroy-Regular',
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 15,
+    marginTop: 20,
+    gap: 15,
   },
   cancelButton: {
-    backgroundColor: '#7585cdff',
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 15,
+    borderRadius: 15,
     flex: 1,
-    marginRight: 10,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   cancelButtonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
     fontFamily: 'Gilroy-Bold',
     letterSpacing: -1,
   },
   createButton: {
     backgroundColor: '#7585cdff',
-    padding: 12,
-    borderRadius: 8,
+    padding: 15,
+    borderRadius: 15,
     flex: 1,
-    marginLeft: 10,
     alignItems: 'center',
   },
   createButtonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
     fontFamily: 'Gilroy-Bold',
     letterSpacing: -1,
   },
   chatScreen: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    paddingTop: 30,
+    backgroundColor: '#000000',
+    marginVertical: 30,
   },
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#fff',
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: 20,
+  },
+  searchInput: {
+    flex: 1,
+    padding: 10,
+    fontSize: 16,
+    fontFamily: 'Gilroy-Regular',
+    color: '#ffffff',
+    backgroundColor: 'rgba(251, 251, 251, 0.55)',
+    borderRadius: 15,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#7585cdff',
+    padding: 5,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  userCard: {
+    backgroundColor: '#7585cdff',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#7585cdff',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 12,
+    fontFamily: 'Gilroy-Bold',
+    color: '#ffffff',
+  },
+  userSteps: {
+    fontSize: 12,
+    fontFamily: 'Gilroy-Regular',
+    color: 'rgba(255,255,255,0.7)',
+  },
+  addFriendButton: {
+    backgroundColor: '#52b94bef',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+  },
+  addFriendButtonText: {
+    color: '#ffffff',
+    fontFamily: 'Gilroy-Bold',
+    fontSize: 12,
+    letterSpacing: -1,
+  },
+  friendsHeader: {
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 25,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+  },
+  friendsMainTitle: {
+    fontSize: 32,
+    fontFamily: 'Gilroy-Bold',
+    color: '#ffffff',
+    marginBottom: 8,
+    letterSpacing: -1,
+  },
+  friendsSubtitle: {
+    fontSize: 16,
+    fontFamily: 'Gilroy-Regular',
+    color: 'rgba(255,255,255,0.8)',
+    letterSpacing: -0.5,
+    marginBottom: 25,
+  },
+  friendsStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 30,
+    padding: 10,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 24,
+    fontFamily: 'Gilroy-Bold',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Gilroy-Regular',
+    color: 'rgba(255,255,255,0.8)',
+    letterSpacing: -0.5,
   },
   backText: {
     fontSize: 16,
-    marginLeft: 5,
-    color: '#007bffff',
-    fontFamily: 'Gilroy-Regular',
+    marginLeft: 8,
+    color: '#7585cdff',
+    fontFamily: 'Gilroy-SemiBold',
+  },
+  friendCard: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  friendStatus: {
+    fontSize: 12,
+    fontFamily: 'Gilroy-Bold',
+    color: '#7585cdff',
+    letterSpacing: -0.5,
+  },
+  friendName: {
+    fontSize: 13,
+    fontFamily: 'Gilroy-Bold',
+    color: '#ffffff',
+    marginBottom: 4,
   },
   chatFriendName: {
     fontSize: 18,
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
     flex: 1,
-    color: '#000',
-    left: 20,
+    color: '#ffffff',
+    textAlign: 'center',
   },
   chatMessages: {
     flex: 1,
-    padding: 15,
+    padding: 20,
   },
   systemMessage: {
     alignSelf: 'center',
-    backgroundColor: '#e9ecef',
-    padding: 10,
-    borderRadius: 15,
-    marginBottom: 15,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 15,
+    borderRadius: 20,
+    marginBottom: 20,
+    maxWidth: '80%',
   },
   systemMessageText: {
-    color: '#6c757d',
+    color: 'rgba(255,255,255,0.7)',
     fontSize: 14,
     textAlign: 'center',
     fontFamily: 'Gilroy-Regular',
   },
   messageBubble: {
     maxWidth: '80%',
-    padding: 12,
-    borderRadius: 15,
-    marginBottom: 10,
+    padding: 15,
+    borderRadius: 20,
+    marginBottom: 15,
   },
   myMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#007bffe2',
+    backgroundColor: '#7585cdff',
   },
   friendMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   messageText: {
     fontSize: 15,
-    color: '#000',
-    marginRight: 30,
+    color: '#ffffff',
     fontFamily: 'Gilroy-Regular',
   },
   myMessageText: {
-    color: '#fff',
+    color: '#ffffff',
   },
   messageTime: {
-    fontSize: 12,
-    color: '#999',
-    marginTop: -5,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 5,
     textAlign: 'right',
-    left: 8,
     fontFamily: 'Gilroy-Regular',
   },
   chatInputContainer: {
     flexDirection: 'row',
-    padding: 15,
-    backgroundColor: '#fff',
+    padding: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
   },
   chatInput: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1,
-    borderColor: '#dee2e6',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginRight: 10,
+    borderColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 25,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginRight: 15,
     fontSize: 16,
     fontFamily: 'Gilroy-Regular',
+    color: '#ffffff',
   },
   sendButton: {
-    backgroundColor: '#007AFF',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    backgroundColor: '#7585cdff',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
   },
   fullScreenChat: {
     flex: 1,
+    backgroundColor: '#000000',
   },
   moodScrollContainer: {
     marginVertical: 20,
@@ -2830,8 +2989,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontFamily: 'Gilroy-Bold',
-    color: '#374151',
-    marginBottom: 12,
+    color: '#ffffffff',
+    marginBottom: 20,
   },
   overviewSection: {
     marginBottom: 20,
@@ -2993,4 +3152,5 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+
 });

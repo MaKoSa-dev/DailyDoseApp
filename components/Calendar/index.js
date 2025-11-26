@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { KeyboardAvoidingView, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   View,
   Text,
@@ -35,17 +36,23 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 const Calendar = () => {
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState([]);
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventToEdit, setEventToEdit] = useState(null);
+  const [showEventsPopup, setShowEventsPopup] = useState(false);
+  const [selectedDayEvents, setSelectedDayEvents] = useState([]);
+  const [selectedDayDate, setSelectedDayDate] = useState(new Date());
+
   const [newEvent, setNewEvent] = useState({
     title: '',
     description: '',
     time: '',
     date: new Date()
   });
+
   const [currentUserId, setCurrentUserId] = useState('user123');
   // Загрузка событий из Firebase/localStorage
   useEffect(() => {
@@ -127,6 +134,11 @@ const Calendar = () => {
   };
   const deleteEventFromFirebase = async (eventId) => {
     try {
+      if (!eventId) {
+        console.error('❌ eventId is undefined или пустой');
+        return;
+      }
+
       await deleteDoc(doc(db, 'calendarEvents', eventId));
       console.log('✅ Событие удалено из Firebase');
     } catch (error) {
@@ -198,6 +210,7 @@ const Calendar = () => {
               isSameDay(day, new Date()) && styles.todayCell
             ]}
             onPress={() => onDayPress(cloneDay)}
+            onLongPress={() => onDayLongPress(cloneDay)}
             disabled={!isSameMonth(day, monthStart)}
           >
             <Text style={[
@@ -210,11 +223,13 @@ const Calendar = () => {
 
             {isSameMonth(day, monthStart) && (
               <View style={styles.eventsContainer}>
+
                 {dayEvents
                   .sort((a, b) => (a.time > b.time ? 1 : -1))
+                  .slice(0, 2)
                   .map((event, index) => (
                     <TouchableOpacity
-                      key={event.id}
+                      key={event.id || `event-${index}-${event.date.getTime()}`}
                       style={[
                         styles.eventItem,
                         event.done && styles.completedEvent
@@ -230,9 +245,16 @@ const Calendar = () => {
                   ))}
 
                 {dayEvents.length > 2 && (
-                  <Text style={styles.moreEventsText}>
-                    +{dayEvents.length - 2} ещё
-                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedDayEvents(dayEvents);
+                      setShowEventsPopup(true);
+                    }}
+                  >
+                    <Text style={styles.moreEventsText}>
+                      +{dayEvents.length - 2} ещё
+                    </Text>
+                  </TouchableOpacity>
                 )}
               </View>
             )}
@@ -248,7 +270,7 @@ const Calendar = () => {
         day = addDays(day, 1);
       }
       rows.push(
-        <View key={day.toString()} style={styles.row}>
+        <View key={`row-${day.getTime()}`} style={styles.row}>
           {days}
         </View>
       );
@@ -261,7 +283,14 @@ const Calendar = () => {
   const onDayPress = (day) => {
     setSelectedDate(day);
   };
-
+  const onDayLongPress = (day) => {
+    const dayEvents = events.filter(event => isSameDay(day, new Date(event.date)));
+    if (dayEvents.length > 0) {
+      setSelectedDayEvents(dayEvents);
+      setSelectedDayDate(day);
+      setShowEventsPopup(true);
+    }
+  };
   const onAddEventClick = (date) => {
     setSelectedDate(date);
     setNewEvent({
@@ -348,6 +377,7 @@ const Calendar = () => {
 
       await saveEventToFirebase(updatedEvent);
       setEvents(prev => prev.map(e => e.id === eventId ? updatedEvent : e));
+      setSelectedDayEvents(prev => prev.map(e => e.id === eventId ? updatedEvent : e));
 
     } catch (error) {
       console.error('❌ Ошибка обновления статуса:', error);
@@ -361,88 +391,142 @@ const Calendar = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
   };
 
-  const EventModal = () => (
-    <Modal
-      visible={showEventModal}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => {
-        setShowEventModal(false);
-        setEventToEdit(null);
-      }}
-    >
-      <KeyboardAvoidingView
-        style={styles.modalOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+  return (
+    <View style={styles.container}>
+      <Modal
+        visible={showEventModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {
+          setShowEventModal(false);
+          setEventToEdit(null);
+        }}
       >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>
-            {eventToEdit ? 'Редактировать событие' : 'Добавить событие'}
-          </Text>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {eventToEdit ? 'Редактировать событие' : 'Добавить событие'}
+            </Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Название события"
-            value={newEvent.title}
-            onChangeText={(text) => setNewEvent({ ...newEvent, title: text })}
-          />
-
-          <TextInput
-            style={styles.input}
-            placeholder="Время"
-            value={newEvent.time}
-            onChangeText={(text) => setNewEvent({ ...newEvent, time: text })}
-          />
-
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Описание (необязательно)"
-            value={newEvent.description}
-            onChangeText={(text) => setNewEvent({ ...newEvent, description: text })}
-            multiline
-            numberOfLines={3}
-          />
-
-          <Text style={styles.selectedDateText}>
-            Дата: {format(selectedDate, 'dd.MM.yyyy', { locale: ru })}
-          </Text>
-
-          <View style={styles.modalButtons}>
-            {eventToEdit && (
-              <TouchableOpacity
-                style={[styles.modalButton, styles.deleteButton]}
-                onPress={() => deleteEvent(eventToEdit.id)}
-              >
-                <Text style={styles.deleteButtonText}>Удалить</Text>
-              </TouchableOpacity>
-            )}
+            <TextInput
+              style={styles.input}
+              placeholder="Название события"
+              value={newEvent.title}
+              onChangeText={(text) => setNewEvent(prev => ({ ...prev, title: text }))}
+            />
 
             <TouchableOpacity
-              style={[styles.modalButton, styles.cancelButton]}
-              onPress={() => {
-                setShowEventModal(false);
-                setEventToEdit(null);
-              }}
+              style={styles.input}
+              onPress={() => setShowTimePicker(true)}
             >
-              <Text style={styles.cancelButtonText}>Отмена</Text>
+              <Text style={newEvent.time ? styles.timeText : styles.placeholderText}>
+                {newEvent.time || 'Выберите время'}
+              </Text>
             </TouchableOpacity>
 
+            {showTimePicker && (
+              <DateTimePicker
+                value={new Date()}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedTime) => {
+                  setShowTimePicker(false);
+                  if (selectedTime) {
+                    const timeString = format(selectedTime, 'HH:mm');
+                    setNewEvent(prev => ({ ...prev, time: timeString }));
+                  }
+                }}
+              />
+            )}
+
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Описание (необязательно)"
+              value={newEvent.description}
+              onChangeText={(text) => setNewEvent(prev => ({ ...prev, description: text }))}
+              multiline
+              numberOfLines={3}
+            />
+
+            <Text style={styles.selectedDateText}>
+              Дата: {format(selectedDate, 'dd.MM.yyyy', { locale: ru })}
+            </Text>
+
+            <View style={styles.modalButtons}>
+              {eventToEdit && (
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.deleteButton]}
+                  onPress={() => deleteEvent(eventToEdit.id)}
+                >
+                  <Text style={styles.deleteButtonText}>Удалить</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowEventModal(false);
+                  setEventToEdit(null);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Отмена</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSaveEvent}
+              >
+                <Text style={styles.saveButtonText}>Сохранить</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+      <Modal
+        visible={showEventsPopup}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowEventsPopup(false)}
+      >
+        <View style={styles.popupOverlay}>
+          <View style={styles.popupContent}>
+            <Text style={styles.popupTitle}>
+              События на {format(selectedDayDate, 'dd.MM.yyyy', { locale: ru })}
+            </Text>
+
+            <ScrollView style={styles.popupEventsList}>
+              {selectedDayEvents
+                .sort((a, b) => (a.time > b.time ? 1 : -1))
+                .map((event) => (
+                  <TouchableOpacity
+                    key={event.id}
+                    style={[styles.popupEventItem, event.done && styles.completedEvent]}
+                    onPress={() => {
+                      editEvent(event);
+                      setShowEventsPopup(false);
+                    }}
+                    onLongPress={() => toggleEventCompletion(event.id)}
+                  >
+                    <Text style={styles.popupEventTime}>{event.time}</Text>
+                    <Text style={styles.popupEventTitle}>{event.title}</Text>
+                    {event.done && <Text style={styles.checkmark}> ✓</Text>}
+                  </TouchableOpacity>
+                ))}
+            </ScrollView>
+
             <TouchableOpacity
-              style={[styles.modalButton, styles.saveButton]}
-              onPress={handleSaveEvent}
+              style={styles.popupCloseButton}
+              onPress={() => setShowEventsPopup(false)}
             >
-              <Text style={styles.saveButtonText}>Сохранить</Text>
+              <Text style={styles.popupCloseText}>Закрыть</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-
-  return (
-    <View style={styles.container}>
-      <EventModal />
-
+      </Modal>
       {renderHeader()}
       {renderDays()}
       <ScrollView style={styles.calendarContainer}>
@@ -632,7 +716,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   cancelButton: {
-    backgroundColor: '#6b7280',
+    backgroundColor: '#7585cdff',
   },
   saveButton: {
     backgroundColor: '#7585cdff',
@@ -642,19 +726,129 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#fff',
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   saveButtonText: {
     color: '#fff',
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
+    marginHorizontal: -6,
+
   },
   deleteButtonText: {
     color: '#fff',
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   completedEvent: {
     backgroundColor: '#10B981',
     opacity: 0.8,
+  },
+  timeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timeInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    width: 60,
+    textAlign: 'center',
+    fontSize: 16,
+  },
+  timeSeparator: {
+    fontSize: 16,
+    marginHorizontal: 8,
+  },
+  timeConfirmButton: {
+    backgroundColor: '#7585cdff',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeConfirmText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  timeText: {
+    fontSize: 16,
+    color: '#000',
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: '#9CA3AF',
+  },
+  popupOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  popupContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
+  popupTitle: {
+    fontSize: 18,
+    fontFamily: 'Gilroy-Bold',
+    color: '#7585cdff',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  popupEventsList: {
+    maxHeight: 300,
+  },
+  popupEventItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  popupEventTime: {
+    fontSize: 14,
+    fontFamily: 'Gilroy-SemiBold',
+    color: '#7585cdff',
+    width: 60,
+  },
+  popupEventTitle: {
+    fontSize: 14,
+    fontFamily: 'Gilroy-Regular',
+    color: '#374151',
+    flex: 1,
+  },
+  checkmark: {
+    color: '#10B981',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  popupCloseButton: {
+    backgroundColor: '#7585cdff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  popupCloseText: {
+    color: '#fff',
+    fontFamily: 'Gilroy-SemiBold',
+    fontSize: 16,
   },
 });
 export default Calendar;
