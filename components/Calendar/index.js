@@ -45,7 +45,6 @@ const Calendar = () => {
   const [showEventsPopup, setShowEventsPopup] = useState(false);
   const [selectedDayEvents, setSelectedDayEvents] = useState([]);
   const [selectedDayDate, setSelectedDayDate] = useState(new Date());
-
   const [newEvent, setNewEvent] = useState({
     title: '',
     description: '',
@@ -108,7 +107,7 @@ const Calendar = () => {
       console.error('❌ Ошибка загрузки событий:', error);
     }
   };
-
+ 
   const saveEvents = async (updatedEvents) => {
     try {
       if (eventData.id) {
@@ -357,8 +356,24 @@ const Calendar = () => {
       console.error('❌ Ошибка сохранения события:', error);
     }
   };
+  const loadCalendarEvents = async () => {
+    try {
+      const calendarEventsRef = collection(db, 'users', currentUserId, 'calendarEvents');
+      const querySnapshot = await getDocs(calendarEventsRef);
 
+      const events = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        date: doc.data().date.toDate()
+      }));
 
+      // Здесь можно объединить с обычными событиями календаря
+      console.log('📅 События календаря загружены:', events);
+
+    } catch (error) {
+      console.error('❌ Ошибка загрузки событий календаря:', error);
+    }
+  };
 
   const deleteEvent = async (eventId) => {
     try {

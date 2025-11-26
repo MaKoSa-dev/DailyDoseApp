@@ -398,6 +398,8 @@ export default function App() {
 
   const deleteFriend = async (friendId) => {
     try {
+      const chatId = [friendId, currentUserId].sort().join('_');
+
       // Удаляем у текущего пользователя
       await updateDoc(doc(db, 'users', currentUserId), {
         friends: arrayRemove(friendId)
@@ -407,9 +409,42 @@ export default function App() {
       await updateDoc(doc(db, 'users', friendId), {
         friends: arrayRemove(currentUserId)
       });
+      const messagesRef = collection(db, 'chats', chatId, 'messages');
+      const messagesSnapshot = await getDocs(messagesRef);
+      const deletePromises = messagesSnapshot.docs.map(messageDoc =>
+        deleteDoc(doc(db, 'chats', chatId, 'messages', messageDoc.id))
+      );
+      await Promise.all(deletePromises);
+      const chatDocRef = doc(db, 'chats', chatId);
+      const chatDoc = await getDoc(chatDocRef);
+      if (chatDoc.exists()) {
+        await deleteDoc(chatDocRef);
+      }
+      const meetingsRef = collection(db, 'meetings');
+      const meetingsQuery = query(
+        meetingsRef,
+        where('participants', 'array-contains', currentUserId)
+      );
+      const meetingsSnapshot = await getDocs(meetingsQuery);
 
+      const meetingDeletePromises = meetingsSnapshot.docs
+        .filter(meetingDoc => {
+          const meetingData = meetingDoc.data();
+          // Удаляем встречи где оба участника - текущий пользователь и удаляемый друг
+          return meetingData.participants.includes(friendId);
+        })
+        .map(meetingDoc => deleteDoc(doc(db, 'meetings', meetingDoc.id)));
+      await Promise.all(meetingDeletePromises);
+      await Promise.all(meetingDeletePromises);
       // Обновляем локальные данные
       setFriends(friends.filter(friend => friend !== friendId));
+      setMessages([]);
+      setActiveChat(null);
+      setMeetings(prevMeetings =>
+        prevMeetings.filter(meeting =>
+          !meeting.participants.includes(friendId)
+        )
+      );
 
       // Возвращаемся к списку друзей
       setActiveTab('friends');
@@ -718,7 +753,6 @@ export default function App() {
         status: 'planned',
         createdAt: new Date()
       };
-
       await addDoc(collection(db, 'meetings'), meetingData);
       await loadMeetings();
       setShowCreateMeeting(false);
@@ -2505,7 +2539,7 @@ const styles = StyleSheet.create({
   chatScreen: {
     flex: 1,
     backgroundColor: '#000000',
-    marginVertical: 30,
+    marginVertical: 20,
   },
   chatHeader: {
     flexDirection: 'row',
@@ -2659,6 +2693,7 @@ const styles = StyleSheet.create({
   chatMessages: {
     flex: 1,
     padding: 20,
+    marginTop: 30,
   },
   systemMessage: {
     alignSelf: 'center',
@@ -2989,7 +3024,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontFamily: 'Gilroy-Bold',
-    color: '#ffffffff',
+    color: '#7585cdff',
     marginBottom: 20,
   },
   overviewSection: {
