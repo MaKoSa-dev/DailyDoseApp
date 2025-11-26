@@ -6,6 +6,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import Svg, { Path, Circle, G } from 'react-native-svg';
+import Calendar from './components/Calendar';
+import { format } from 'date-fns';
+import { kk } from 'date-fns/locale';
 import {
   doc, setDoc, getDoc, updateDoc,
   collection, query, where, getDocs,
@@ -15,7 +18,6 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const { height: screenHeight } = Dimensions.get('window');
 // Данные метрик.
-// Данные метрик..
 const metrics = [
   { title: 'Шаги', value: 0, unit: 'шагов', target: 10000 },
   { title: 'Сон', value: '0ч 0м', unit: '', target: 8 },
@@ -323,6 +325,7 @@ export default function App() {
   const [showUserSwitch, setShowUserSwitch] = useState(false);
   const [showTopSection, setShowTopSection] = useState(true);
   const [friends, setFriends] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [friendRequests, setFriendRequests] = useState({
     incoming: [],
     outgoing: []
@@ -404,6 +407,9 @@ export default function App() {
       console.error('❌ Ошибка удаления друга:', error);
     }
   };
+  const updateTime = () => {
+    setLastUpdated(new Date());
+  };
   const saveAllData = async () => {
     try {
       console.log('🔄 Пытаюсь сохранить данные...');
@@ -419,6 +425,7 @@ export default function App() {
 
       });
       console.log('✅ Данные УСПЕШНО сохранены в Firebase');
+      updateTime();
     } catch (error) {
       console.error('❌ Ошибка сохранения:', error);
     }
@@ -733,6 +740,213 @@ export default function App() {
       console.error('Ошибка загрузки встреч:', error);
     }
   };
+  const BalanceDashboard = () => {
+    const [selectedPeriod, setSelectedPeriod] = useState('week');
+    const [weeklyData, setWeeklyData] = useState([
+      { day: 'ПН', balance: 85, status: 'excellent' },
+      { day: 'ВТ', balance: 72, status: 'good' },
+      { day: 'СР', balance: 90, status: 'excellent' },
+      { day: 'ЧТ', balance: 45, status: 'poor' },
+      { day: 'ПТ', balance: 78, status: 'good' },
+      { day: 'СБ', balance: 95, status: 'excellent' },
+      { day: 'ВС', balance: 68, status: 'good' }
+    ]);
+
+    const getStatusEmoji = (status) => {
+      switch (status) {
+        case 'excellent': return '🟢';
+        case 'good': return '🟡';
+        case 'poor': return '🔴';
+        default: return '⚪';
+      }
+    };
+
+    const getProgressWidth = (value) => {
+      return `${Math.max(10, value)}%`;
+    };
+
+    const metrics = {
+      overallBalance: 78,
+      activeDays: '6/7',
+      completedGoals: '24/30',
+      water: { value: 75, current: 6, target: 8 },
+      meals: { value: 67, current: 2, target: 3 },
+      activity: { value: 85, current: 8.5, target: 10 },
+      mood: { value: 84, current: 4.2, target: 5 }
+    };
+
+    return (
+      <View style={styles.dashboardContainer}>
+        {/* Заголовок */}
+        <View style={styles.dashboardHeader}>
+          <Text style={styles.dashboardTitle}>Таблица прогресса</Text>
+          <View style={styles.headerInfo}>
+            <View style={styles.periodSelector}>
+              <TouchableOpacity
+                style={[styles.periodButton, selectedPeriod === 'week' && styles.periodButtonActive]}
+                onPress={() => setSelectedPeriod('week')}
+              >
+                <Text style={[styles.periodText, selectedPeriod === 'week' && styles.periodTextActive]}>
+                  Неделя
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.periodButton, selectedPeriod === 'month' && styles.periodButtonActive]}
+                onPress={() => setSelectedPeriod('month')}
+              >
+                <Text style={[styles.periodText, selectedPeriod === 'month' && styles.periodTextActive]}>
+                  Месяц
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.updateTime}>
+              Обновлено: {lastUpdated.toLocaleDateString('ru-RU', {
+                month: 'long',
+                day: 'numeric'
+              })} {lastUpdated.toLocaleTimeString('kk-KZ', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </Text>
+          </View>
+        </View>
+
+        {/* Основные метрики */}
+        <View style={styles.overviewSection}>
+          <Text style={styles.sectionTitle}>
+            <Ionicons name="stats-chart" size={18} color='#7585cdff' /> ОСНОВНЫЕ МЕТРИКИ:
+          </Text>
+          <View style={styles.metricsGrid}>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>Баланс:</Text>
+              <Text style={styles.metricLabel}>{metrics.overallBalance}%</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>Актив:</Text>
+              <Text style={styles.metricLabel}>{metrics.activeDays} дней</Text>
+            </View>
+            <View style={styles.metricCard}>
+              <Text style={styles.metricValue}>Завер:</Text>
+              <Text style={styles.metricLabel}>{metrics.completedGoals} целей</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Heatmap недели */}
+        <View style={styles.heatmapSection}>
+          <Text style={styles.sectionTitle}>
+            <Ionicons name="calendar" size={18} color='#7585cdff' /> ТЕПЛОВАЯ КАРТА НЕДЕЛИ:
+          </Text>
+          <View style={styles.heatmap}>
+            <View style={styles.heatmapDays}>
+              {weeklyData.map((day, index) => (
+                <Text key={index} style={styles.heatmapDayLabel}>{day.day}</Text>
+              ))}
+            </View>
+            <View style={styles.heatmapStatus}>
+              {weeklyData.map((day, index) => (
+                <Text key={index} style={styles.heatmapEmoji}>
+                  {getStatusEmoji(day.status)}
+                </Text>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Прогресс метрики */}
+        <View style={styles.progressSection}>
+          <Text style={styles.sectionTitle}>
+            <Ionicons name="trending-up" size={18} color='#7585cdff' /> МЕТРИКИ ПРОГРЕССА:
+          </Text>
+          <View style={styles.progressGrid}>
+            <View style={styles.progressCard}>
+              <Text style={styles.progressIcon}>
+                <Ionicons name="water" size={20} color='#7585cdff' />
+              </Text>
+              <Text style={styles.progressValue}>{metrics.water.value}%</Text>
+              <Text style={styles.progressDetail}>
+                {metrics.water.current}/{metrics.water.target} ст
+              </Text>
+            </View>
+            <View style={styles.progressCard}>
+              <Text style={styles.progressIcon}>
+                <Ionicons name="restaurant" size={20} color='#7585cdff' />
+              </Text>
+              <Text style={styles.progressValue}>{metrics.meals.value}%</Text>
+              <Text style={styles.progressDetail}>
+                {metrics.meals.current}/{metrics.meals.target} приём
+              </Text>
+            </View>
+            <View style={styles.progressCard}>
+              <Text style={styles.progressIcon}>
+                <Ionicons name="walk" size={20} color='#7585cdff' />
+              </Text>
+              <Text style={styles.progressValue}>{metrics.activity.value}%</Text>
+              <Text style={styles.progressDetail}>
+                {metrics.activity.current}к шаг
+              </Text>
+            </View>
+            <View style={styles.progressCard}>
+              <Text style={styles.progressIcon}>
+                <Ionicons name="accessibility" size={20} color='#7585cdff' />
+              </Text>
+              <Text style={styles.progressValue}>{metrics.mood.value}%</Text>
+              <Text style={styles.progressDetail}>
+                {metrics.mood.current}/{metrics.mood.target}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* График тренда */}
+        <View style={styles.trendSection}>
+          <Text style={styles.sectionTitle}>
+            <Ionicons name="pulse" size={18} color='#7585cdff' /> ТРЕНД НЕДЕЛИ:
+          </Text>
+          <View style={styles.trendChart}>
+            <View style={styles.trendYAxis}>
+              <Text style={styles.trendLabel}>100% ┤</Text>
+              <Text style={styles.trendLabel}>80% ┤</Text>
+              <Text style={styles.trendLabel}>60% ┤</Text>
+              <Text style={styles.trendLabel}>40% ┤</Text>
+              <Text style={styles.trendLabel}>20% ┤</Text>
+            </View>
+            <View style={styles.trendLine}>
+              <View style={[styles.trendPoint, { left: '0%' }]} />
+              <View style={[styles.trendPoint, { left: '16%' }]} />
+              <View style={[styles.trendPoint, { left: '33%' }]} />
+              <View style={[styles.trendPoint, { left: '50%' }]} />
+              <View style={[styles.trendPoint, { left: '66%' }]} />
+              <View style={[styles.trendPoint, { left: '83%' }]} />
+              <View style={[styles.trendPoint, { left: '100%' }]} />
+            </View>
+            <View style={styles.trendXAxis}>
+              <Text style={styles.trendDay}>ПН</Text>
+              <Text style={styles.trendDay}>ВТ</Text>
+              <Text style={styles.trendDay}>СР</Text>
+              <Text style={styles.trendDay}>ЧТ</Text>
+              <Text style={styles.trendDay}>ПТ</Text>
+              <Text style={styles.trendDay}>СБ</Text>
+              <Text style={styles.trendDay}>ВС</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Инсайты */}
+        <View style={styles.insightsSection}>
+          <Text style={styles.sectionTitle}>
+            <Ionicons name="bulb" size={18} color='#7585cdff' /> ИНСАЙТЫ НЕДЕЛИ:
+          </Text>
+          <View style={styles.insightsList}>
+            <Text style={styles.insightItem}>• Лучший день: Суббота (95% завершения)</Text>
+            <Text style={styles.insightItem}>• Сложности: Четверг (только 35%)</Text>
+            <Text style={styles.insightItem}>• Улучшение: Активность +15% vs прошлая неделя</Text>
+            <Text style={styles.insightItem}>• Внимание: Потребление воды (-1.5 стакана)</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
   // Загрузка данных
   useEffect(() => {
     if (activeTab !== 'friends') { setSearchResults([]); }
@@ -862,22 +1076,30 @@ export default function App() {
                   <View style={styles.stepsProgress}>
                     <View style={[styles.stepsGoal, { width: `${(steps / stepGoal) * 100}%` }]} />
                   </View>
-                  <Text style={styles.stepsGoaltext}>Сегодняшняя цель:</Text>
+                  <Text style={styles.stepsGoaltext}>Цель: </Text>
                   <Text style={styles.stepsGoal}>{stepGoal} шагов</Text>
                 </View>
                 <View style={styles.stepsCircle}>
                   <Text style={styles.stepsCount}>{steps}</Text>
                   <Text style={styles.stepsLabel}>шагов</Text>
                 </View>
-                <View style={styles.waterFooter}>
-                  <Ionicons name="wine-outline" size={20} color="#3B82F6" />
+                <View style={styles.stepsActions}>
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => {
+                      setSteps(steps + 1000);
+                      updateTime();
+                    }}
+                  >
+                    <Ionicons name="add" size={20} color="#fff" />
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.headerWithCircle}>
                   <TouchableOpacity
-                    style={styles.circleButton}
+                    style={styles.circleButtonFirst}
                     onPress={() => setShowStepGoalModal(true)}
                   >
-                    <Ionicons name="pencil-outline" size={18} color="#6366F1" />
+                    <Ionicons name="pencil-outline" size={18} color='#fefeffff' />
                   </TouchableOpacity>
                 </View>
 
@@ -886,17 +1108,31 @@ export default function App() {
                   <View style={styles.headerWithCircle}>
                     <Text style={styles.waterTitle}>Вода</Text>
                   </View>
-                  <Text style={styles.waterAmount}>{water} л</Text>
+                  <Text style={styles.waterAmount}>{Math.floor(water)} л</Text>
+                  <View style={styles.waterActions}>
+                    <TouchableOpacity
+                      style={styles.addButton}
+                      onPress={() => {
+                        setWater(Number((water + 0.25).toFixed(2)));
+                        updateTime();
+                      }}                    >
+                      <Ionicons name="add" size={20} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
                   <View style={styles.waterProgress}>
                     <View style={[styles.waterProgressFill, { width: `${(water / waterGoal) * 100}%` }]} />
                   </View>
-                  <Text style={styles.waterGoal}>Цель: {waterGoal} л</Text>
+                  <Text style={styles.waterGoal}>Цель: </Text>
+                  <Text style={styles.waterGoaltext}>{waterGoal} л</Text>
+                </View>
+                <View style={styles.waterFooter}>
+                  <Ionicons name="wine-outline" size={120} color='#7585cdff' />
                 </View>
                 <TouchableOpacity
-                  style={styles.circleButton}
+                  style={styles.circleButtonSecond}
                   onPress={() => setShowWaterGoalModal(true)}
                 >
-                  <Ionicons name="pencil-outline" size={18} color="#3B82F6" />
+                  <Ionicons name="pencil-outline" size={18} color='#f8f8f8ff' />
                 </TouchableOpacity>
               </View>
               {/* Аффирмация */}
@@ -917,7 +1153,49 @@ export default function App() {
                   </TouchableOpacity>
                 </View>
               </View>
+              <View style={styles.section}>
+                <BalanceDashboard />
+              </View>
             </ScrollView>
+            {/* Модалка для изменения цели воды */}
+            {showWaterGoalModal && (
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Изменить цель воды</Text>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={String(tempWaterGoal)}
+                    onChangeText={(text) => setTempWaterGoal(Number(text))}
+                    placeholder="Введите цель в литрах"
+                  />
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setShowWaterGoalModal(false);
+                        setTempWaterGoal(waterGoal); // Сбрасываем на текущее значение
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Отмена</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.createButton}
+                      onPress={() => {
+                        if (tempWaterGoal > 0) {
+                          setWaterGoal(tempWaterGoal);
+                          setShowWaterGoalModal(false);
+                        } else {
+                          alert('Пожалуйста, введите корректное значение');
+                        }
+                      }}
+                    >
+                      <Text style={styles.createButtonText}>Сохранить</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
             {/* Модалка для изменения цели шагов */}
             {showStepGoalModal && (
               <View style={styles.modalOverlay}>
@@ -1184,9 +1462,8 @@ export default function App() {
         }
       case 'calendar':
         return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Календарь</Text>
-            <Text>Здесь будет календарь</Text>
+          <View style={styles.calendarTab}>
+            <Calendar />
           </View>
         );
       case 'settings':
@@ -1194,63 +1471,56 @@ export default function App() {
           <ScrollView style={styles.settingsContainer} showsVerticalScrollIndicator={false}>
 
             {/* ПЕРЕКЛЮЧАТЕЛЬ ПОЛЬЗОВАТЕЛЕЙ */}
-            <View style={styles.settingsSection}>
-              <Text style={styles.settingsTitle}>👤 Переключение пользователей</Text>
+            <LinearGradient
+              colors={['#BFD4FF', '#7585cdff']}
+              style={styles.settingsSection}
+            >
+              <Text style={styles.settingsTitle}>
+                <Ionicons name="person-circle" size={20} color="#374151" />  Переключение пользователей
+              </Text>
               <Text style={styles.settingsDescription}>
                 Текущий пользователь: {getUserName(currentUserId)}
               </Text>
 
               <View style={styles.userOptions}>
-                <TouchableOpacity
-                  style={[styles.userButton, currentUserId === 'user123' && styles.activeUserButton]}
-                  onPress={() => {
-                    setCurrentUserId('user123')
-                    setSearchUsername('');
-                    setSearchResults([]);
-                  }
-                  }
-                >
-                  <Text style={styles.userButtonText}>👩 Мария (user123)</Text>
-                  <Text style={styles.userButtonSubtext}>Основной аккаунт</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.userButton, currentUserId === 'user456' && styles.activeUserButton]}
-                  onPress={() => {
-                    setCurrentUserId('user456');
-                    setSearchUsername('');
-                    setSearchResults([]);
-                  }
-                  }
-                >
-                  <Text style={styles.userButtonText}>👱‍♀️ Анна (user456)</Text>
-                  <Text style={styles.userButtonSubtext}>Шаги: {allUsersData['user456']?.steps || 0} | Вода: {allUsersData['user456']?.water || 0}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.userButton, currentUserId === 'user789' && styles.activeUserButton]}
-                  onPress={() => {
-                    setCurrentUserId('user789')
-                    setSearchUsername('');
-                    setSearchResults([]);
-                  }
-                  }
-                >
-                  <Text style={styles.userButtonText}>👨 Максим (user789)</Text>
-                  <Text style={styles.userButtonSubtext}>Шаги: {allUsersData['user789']?.steps || 0} | Вода: {allUsersData['user789']?.water || 0}</Text>
-                </TouchableOpacity>
+                {Object.entries(allUsersData).map(([userId, userData]) => (
+                  <TouchableOpacity
+                    key={userId}
+                    style={[styles.userButton, currentUserId === userId && styles.activeUserButton]}
+                    onPress={() => {
+                      setCurrentUserId(userId);
+                      setSearchUsername('');
+                      setSearchResults([]);
+                    }}
+                  >
+                    <View style={styles.userInfo}>
+                      <Ionicons name="person-outline" size={24} color="#374151" />
+                      <View style={styles.userDetails}>
+                        <Text style={styles.userName}>
+                          {userData.username || userId}
+                        </Text>
+                        <Text style={styles.userId}>{userId}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.userButtonSubtext}>
+                      Шаги: {userData.steps || 0} | Вода: {Math.floor(userData.water || 0)} л
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-
-            </View>
-
+            </LinearGradient>
             {/* ИНФОРМАЦИЯ О ПРИЛОЖЕНИИ */}
-            <View style={styles.settingsSection}>
-              <Text style={styles.settingsTitle}>ℹ️ О приложении</Text>
-              <Text style={styles.appInfo}>
-                Daily Dose - Трекер здоровья v1.0{"\n"}
-                С шагами, водой, едой и друзьями
+            <LinearGradient
+              colors={['#BFD4FF', '#7585cdff']}
+              style={styles.settingsSection}
+            >
+              <Text style={styles.settingsTitle}>
+                <Ionicons name="information-circle-outline" size={20} color="#374151" /> О приложении
               </Text>
-            </View>
+              <Text style={styles.appInfo}>
+                Daily Dose - Трекер здоровья v1.0
+              </Text>
+            </LinearGradient>
 
           </ScrollView>
         );
@@ -1271,7 +1541,7 @@ export default function App() {
             style={[styles.tab, activeTab === 'home' && styles.activeTab]}
             onPress={() => setActiveTab('home')}
           >
-            <Ionicons name="home-outline" size={16} color="#000" />
+            <Ionicons name="home-outline" size={18} color="#000" />
             <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>
               Главная
             </Text>
@@ -1327,9 +1597,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffffff',
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    paddingVertical: 10,
+    paddingVertical: 5,
     position: 'absolute',
-    bottom: 0,
+    bottom: 15,
     left: 0,
     right: 0,
   },
@@ -1344,21 +1614,23 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 7,
   },
   activeTab: {
     borderTopWidth: 2,
-    borderTopColor: '#52b94bef',
+    borderTopColor: '#7585cdff',
   },
   tabText: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 4,
-    fontFamily: 'Gilroy-Regular',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   activeTabText: {
     color: '#6366F1',
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   tabContent: {
     flex: 1,
@@ -1488,15 +1760,10 @@ const styles = StyleSheet.create({
   },
 
   section: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     marginBottom: 15,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Gilroy-Bold',
-    color: '#1E293B',
-    marginBottom: 15,
-  },
+
   bottomScrollView: {
     flex: 1,
     backgroundColor: '#000000ff', // Добавляем фон чтобы контент был виден
@@ -1510,13 +1777,16 @@ const styles = StyleSheet.create({
   },
   // Стили для шагомера
   stepsContainer: {
-    marginRight: -50,
     top: 10,
+    marginRight: -45,
     backgroundColor: '#fff',
     padding: 20,
-    borderRadius: 16,
-    marginHorizontal: -40,
-    marginBottom: 30,
+    width: 200,
+    height: 230,
+    right: -10,
+    borderRadius: 35,
+    marginHorizontal: -55,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1534,10 +1804,10 @@ const styles = StyleSheet.create({
     top: -10,
   },
   stepsCircle: {
-    left: -150,
-    top: 140,
-    width: 125,
-    height: 125,
+    left: -130,
+    top: 120,
+    width: 100,
+    height: 100,
     borderRadius: 100,
     backgroundColor: '#7585cdff',
     justifyContent: 'center',
@@ -1547,6 +1817,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'Gilroy-Bold',
     color: '#fff',
+  },
+  stepsActions: {
+    position: 'absolute',
+    left: 140,
+    top: 70,
   },
   stepsLabel: {
     fontSize: 12,
@@ -1566,7 +1841,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Gilroy-Bold',
     color: '#7585cdff',
     marginBottom: 1,
-    left: 10,
+    left: -10,
   },
   stepsProgress: {
     fontSize: 14,
@@ -1580,7 +1855,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Gilroy-SemiBold',
     color: '#7585cdff',
     marginBottom: 1,
-    left: -12,
+    left: -10,
   },
   // Стили для еды
   mealsContainer: {
@@ -1677,11 +1952,13 @@ const styles = StyleSheet.create({
   // Стили для воды
   waterTracker: {
     top: 10,
-    left: -20,
+    left: -5,
     backgroundColor: '#fff',
     padding: 60,
-    borderRadius: 16,
-    marginHorizontal: -100,
+    height: 230,
+    width: 200,
+    borderRadius: 35,
+    marginHorizontal: -70,
     marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1699,25 +1976,60 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: -1,
   },
+  waterActions: {
+    position: 'absolute',
+    right: 18,
+    top: 62,
+  },
   waterAmount: {
-    fontSize: 32,
+    fontSize: 28,
     fontFamily: 'Gilroy-Bold',
     color: '#7585cdff',
     marginBottom: 20,
     left: -50,
-    top: -70,
+    top: -60,
   },
   waterProgress: {
-    height: 12,
+    height: 10,
+    top: -110,
+    left: 45,
     backgroundColor: '#F1F5F9',
     borderRadius: 6,
     overflow: 'hidden',
   },
   waterProgressFill: {
     height: '100%',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#7585cdff',
     borderRadius: 6,
   },
+  waterGoal: {
+    fontFamily: 'Gilroy-Bold',
+    color: '#7585cdff',
+    top: -150,
+    left: 45,
+  },
+  waterGoaltext: {
+    fontFamily: 'Gilroy-Bold',
+    color: '#7585cdff',
+    top: -130,
+    left: 45,
+  },
+  addButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 20,
+    backgroundColor: '#7585cdff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+    top: 70,
+    left: 5,
+  },
+
   // Стили для социальной активности
   socialContainer: {
     flexDirection: 'row',
@@ -1753,7 +2065,7 @@ const styles = StyleSheet.create({
   affirmationCard: {
     backgroundColor: '#fff',
     padding: 20,
-    borderRadius: 16,
+    borderRadius: 35,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1763,22 +2075,24 @@ const styles = StyleSheet.create({
   affirmationText: {
     fontSize: 16,
     fontStyle: 'italic',
-    color: '#475569',
+    color: '#7585cdff',
     textAlign: 'center',
     marginBottom: 15,
     lineHeight: 22,
-    fontFamily: 'Gilroy-Regular',
+    fontFamily: 'Gilroy-SemiBold',
+    letterSpacing: -0.5,
   },
   newAffirmationButton: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#7585cdff',
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 20,
     alignItems: 'center',
   },
   newAffirmationText: {
-    color: '#475569',
-    fontFamily: 'Gilroy-SemiBold',
+    color: '#ffffffff',
+    fontFamily: 'Gilroy-Bold',
     fontSize: 14,
+    letterSpacing: -1,
   },
   // Стили для прогресса
   progressHeader: {
@@ -1837,16 +2151,19 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   settingsTitle: {
-    fontSize: 18,
-    fontFamily: 'Gilroy-Bold',
-    color: '#374151',
+    fontSize: 16,
+    fontFamily: 'Gilroy-SemiBold',
+    color: '#ffffffff',
     marginBottom: 10,
+    letterSpacing: -1,
+    alignItems: 'center',
   },
   settingsDescription: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#fbfbfbff',
     marginBottom: 15,
-    fontFamily: 'Gilroy-Regular',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -0.5,
   },
   userOptions: {
     marginBottom: 15,
@@ -1887,9 +2204,10 @@ const styles = StyleSheet.create({
   },
   appInfo: {
     fontSize: 14,
-    color: '#6b7280',
+    color: '#BFD4FF',
     lineHeight: 20,
-    fontFamily: 'Gilroy-Regular',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   friendsContainer: {
     flex: 1,
@@ -2060,10 +2378,12 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
   },
   modalTitle: {
+    color: '#7585cdff',
     fontSize: 20,
-    fontFamily: 'Gilroy-Bold',
+    fontFamily: 'Gilroy-SemiBold',
     marginBottom: 15,
     textAlign: 'center',
+    letterSpacing: -0.5,
   },
   input: {
     borderWidth: 1,
@@ -2115,7 +2435,7 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   cancelButton: {
-    backgroundColor: '#6b7280',
+    backgroundColor: '#7585cdff',
     padding: 12,
     borderRadius: 8,
     flex: 1,
@@ -2125,10 +2445,11 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   createButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#7585cdff',
     padding: 12,
     borderRadius: 8,
     flex: 1,
@@ -2138,7 +2459,8 @@ const styles = StyleSheet.create({
   createButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontFamily: 'Gilroy-SemiBold',
+    fontFamily: 'Gilroy-Bold',
+    letterSpacing: -1,
   },
   chatScreen: {
     flex: 1,
@@ -2391,7 +2713,7 @@ const styles = StyleSheet.create({
   horizontalMetrics: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 40,
+    paddingHorizontal: 45,
     marginBottom: 15,
   },
   headerWithCircle: {
@@ -2400,15 +2722,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  circleButton: {
+  circleButtonFirst: {
     width: 36,
     height: 36,
+    left: -100,
+    top: 90,
     borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#7585cdff',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E2E8F0',
+    borderColor: '#7585cdff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  circleButtonSecond: {
+    width: 36,
+    height: 36,
+    left: -105,
+    top: 190,
+    borderRadius: 18,
+    backgroundColor: '#7585cdff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#7585cdff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -2418,18 +2759,238 @@ const styles = StyleSheet.create({
   circleEmoji: {
     fontSize: 16,
   },
-  goalText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontFamily: 'Gilroy-Regular',
-    marginTop: 8,
-    textAlign: 'center',
-  },
   waterFooter: {
+    left: -150,
+    top: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
     gap: 6,
+  },
+  dashboardContainer: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  dashboardHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    paddingBottom: 15,
+    marginBottom: 15,
+  },
+  dashboardTitle: {
+    fontSize: 18,
+    fontFamily: 'Gilroy-SemiBold',
+    color: '#7585cdff',
+    textAlign: 'center',
+    marginBottom: 10,
+    letterSpacing: -1,
+  },
+  headerInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  periodSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    padding: 4,
+  },
+  periodButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  periodButtonActive: {
+    backgroundColor: '#7585cdff',
+  },
+  periodText: {
+    fontSize: 12,
+    fontFamily: 'Gilroy-SemiBold',
+    color: '#7585cdff',
+    letterSpacing: -1,
+  },
+  periodTextActive: {
+    color: '#fff',
+  },
+  updateTime: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    fontFamily: 'Gilroy-Regular',
+    letterSpacing: -1,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontFamily: 'Gilroy-Bold',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  overviewSection: {
+    marginBottom: 20,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  metricCard: {
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 15,
+    borderRadius: 12,
+    flex: 1,
+    marginHorizontal: 6,
+  },
+  metricValue: {
+    fontSize: 13,
+    fontFamily: 'Gilroy-Bold',
+    color: '#7585cdff',
+    marginBottom: 4,
+    letterSpacing: -1,
+  },
+  metricLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontFamily: 'Gilroy-Regular',
+    textAlign: 'center',
+  },
+  heatmapSection: {
+    marginBottom: 20,
+  },
+  heatmap: {
+    backgroundColor: '#F8FAFC',
+    padding: 15,
+    borderRadius: 12,
+  },
+  heatmapDays: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 10,
+  },
+  heatmapDayLabel: {
+    fontSize: 12,
+    fontFamily: 'Gilroy-SemiBold',
+    color: '#374151',
+    width: 30,
+    textAlign: 'center',
+  },
+  heatmapStatus: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  heatmapEmoji: {
+    fontSize: 20,
+    width: 30,
+    textAlign: 'center',
+  },
+  progressSection: {
+    marginBottom: 20,
+  },
+  progressGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  progressCard: {
+    width: '48%',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  progressIcon: {
+    fontSize: 20,
+    marginBottom: 6,
+  },
+  progressValue: {
+    fontSize: 14,
+    fontFamily: 'Gilroy-Bold',
+    color: '#7585cdff',
+    marginBottom: 2,
+  },
+  progressDetail: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontFamily: 'Gilroy-Regular',
+    textAlign: 'center',
+  },
+  trendSection: {
+    marginBottom: 20,
+  },
+  trendChart: {
+    backgroundColor: '#F8FAFC',
+    padding: 15,
+    borderRadius: 12,
+  },
+  trendYAxis: {
+    position: 'absolute',
+    left: 10,
+    top: 15,
+    bottom: 30,
+    justifyContent: 'space-between',
+  },
+  trendLabel: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontFamily: 'Gilroy-Regular',
+  },
+  trendLine: {
+    height: 100,
+    marginLeft: 40,
+    marginRight: 10,
+    marginBottom: 20,
+    borderLeftWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#D1D5DB',
+    position: 'relative',
+  },
+  trendPoint: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    backgroundColor: '#7585cdff',
+    borderRadius: 4,
+    top: '50%',
+    marginTop: -4,
+  },
+  trendXAxis: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginLeft: 40,
+    marginRight: 10,
+  },
+  trendDay: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontFamily: 'Gilroy-Regular',
+    width: 30,
+    textAlign: 'center',
+  },
+  insightsSection: {
+    marginBottom: 10,
+  },
+  insightsList: {
+    backgroundColor: '#F8FAFC',
+    padding: 15,
+    borderRadius: 12,
+  },
+  insightItem: {
+    fontSize: 12,
+    color: '#374151',
+    fontFamily: 'Gilroy-Regular',
+    marginBottom: 6,
+    lineHeight: 16,
+  },
+  calendarTab: {
+    flex: 1,
+    backgroundColor: '#000000',
   },
 });
